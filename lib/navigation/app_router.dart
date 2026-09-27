@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../core/widgets/placeholder_screen.dart';
 import '../features/auth/screens/login_screen.dart';
-import '../features/auth/screens/temp_screens.dart';
+import '../features/driver/screens/driver_home_screen.dart';
 import '../features/passenger/screens/passenger_home_screen.dart';
 import '../repositories/auth_repository.dart';
+import '../repositories/driver_dashboard_repository.dart';
 import '../repositories/trip_repository.dart';
 import 'app_routes.dart';
 
@@ -14,18 +15,27 @@ import 'app_routes.dart';
 /// All route names are defined in [AppRoutes].
 ///
 /// Architecture note:
-/// - [AuthRepository] and [TripRepository] are passed as dependencies so screens
-///   can access repositories without relying on global state.
+/// - [AuthRepository], [TripRepository], and [DriverDashboardRepository] are
+///   passed as dependencies so screens can access repositories without relying
+///   on global state.
 /// - When state management is introduced (e.g., Riverpod/Bloc), the
 ///   repository injection approach here will be easy to adapt.
 class AppRouter {
-  const AppRouter({required this.authRepository, this.tripRepository});
+  const AppRouter({
+    required this.authRepository,
+    this.tripRepository,
+    this.driverDashboardRepository,
+  });
 
   final AuthRepository authRepository;
   final TripRepository? tripRepository;
+  final DriverDashboardRepository? driverDashboardRepository;
 
   TripRepository get _effectiveTripRepository =>
       tripRepository ?? TripRepository();
+
+  DriverDashboardRepository get _effectiveDriverDashboardRepository =>
+      driverDashboardRepository ?? DriverDashboardRepository();
 
   /// Generates the route for a given [RouteSettings].
   ///
@@ -85,8 +95,9 @@ class AppRouter {
       // -----------------------------------------------------------------------
       // Driver
       // -----------------------------------------------------------------------
-      AppRoutes.driverHome => TempDriverHomeScreen(
+      AppRoutes.driverHome => DriverHomeScreen(
         authRepository: authRepository,
+        dashboardRepository: _effectiveDriverDashboardRepository,
       ),
       AppRoutes.driverRoutes => const PlaceholderScreen(
         title: 'My Routes',

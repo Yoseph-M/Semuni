@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../navigation/app_router.dart';
 import '../navigation/app_routes.dart';
 import '../repositories/auth_repository.dart';
+import '../repositories/driver_dashboard_repository.dart';
 import '../repositories/trip_repository.dart';
 import 'theme/app_theme.dart';
 
@@ -27,6 +28,7 @@ class _SmuniAppState extends State<SmuniApp> {
   // (e.g., Riverpod), this will be replaced by a provider/container setup.
   late final AuthRepository _authRepository;
   late final TripRepository _tripRepository;
+  late final DriverDashboardRepository _driverDashboardRepository;
   late final AppRouter _router;
 
   @override
@@ -34,9 +36,11 @@ class _SmuniAppState extends State<SmuniApp> {
     super.initState();
     _authRepository = AuthRepository();
     _tripRepository = TripRepository();
+    _driverDashboardRepository = DriverDashboardRepository();
     _router = AppRouter(
       authRepository: _authRepository,
       tripRepository: _tripRepository,
+      driverDashboardRepository: _driverDashboardRepository,
     );
   }
 

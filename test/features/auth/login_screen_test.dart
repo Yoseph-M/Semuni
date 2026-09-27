@@ -188,7 +188,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 2));
 
       // Successfully navigated to driver home
-      expect(find.text('Welcome, Abel'), findsOneWidget);
+      expect(find.textContaining('Abel'), findsWidgets);
       expect(find.text('Driver Dashboard'), findsWidgets);
     });
   });

@@ -168,8 +168,8 @@ void main() {
 
         await tester.pumpAndSettle(const Duration(seconds: 2));
 
-        // 9 & 10. Navigates to Driver Home placeholder and displays correctly
-        expect(find.text('Welcome, Abel'), findsOneWidget);
+        // 9 & 10. Navigates to real Driver Home and displays correctly
+        expect(find.textContaining('Abel'), findsWidgets);
         expect(find.text('Driver Dashboard'), findsWidgets);
         expect(find.byIcon(Icons.drive_eta_rounded), findsOneWidget);
 

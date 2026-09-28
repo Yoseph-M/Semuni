@@ -4,6 +4,7 @@ import '../navigation/app_router.dart';
 import '../navigation/app_routes.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/driver_dashboard_repository.dart';
+import '../repositories/driver_route_repository.dart';
 import '../repositories/trip_repository.dart';
 import 'theme/app_theme.dart';
 
@@ -29,6 +30,7 @@ class _SmuniAppState extends State<SmuniApp> {
   late final AuthRepository _authRepository;
   late final TripRepository _tripRepository;
   late final DriverDashboardRepository _driverDashboardRepository;
+  late final DriverRouteRepository _driverRouteRepository;
   late final AppRouter _router;
 
   @override
@@ -37,10 +39,12 @@ class _SmuniAppState extends State<SmuniApp> {
     _authRepository = AuthRepository();
     _tripRepository = TripRepository();
     _driverDashboardRepository = DriverDashboardRepository();
+    _driverRouteRepository = DriverRouteRepository();
     _router = AppRouter(
       authRepository: _authRepository,
       tripRepository: _tripRepository,
       driverDashboardRepository: _driverDashboardRepository,
+      driverRouteRepository: _driverRouteRepository,
     );
   }
 

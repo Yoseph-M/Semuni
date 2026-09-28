@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../core/widgets/placeholder_screen.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/driver/screens/driver_home_screen.dart';
+import '../features/driver/screens/driver_routes_screen.dart';
 import '../features/passenger/screens/passenger_home_screen.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/driver_dashboard_repository.dart';
+import '../repositories/driver_route_repository.dart';
 import '../repositories/trip_repository.dart';
 import 'app_routes.dart';
 
@@ -15,9 +17,9 @@ import 'app_routes.dart';
 /// All route names are defined in [AppRoutes].
 ///
 /// Architecture note:
-/// - [AuthRepository], [TripRepository], and [DriverDashboardRepository] are
-///   passed as dependencies so screens can access repositories without relying
-///   on global state.
+/// - [AuthRepository], [TripRepository], [DriverDashboardRepository], and
+///   [DriverRouteRepository] are passed as dependencies so screens can access
+///   repositories without relying on global state.
 /// - When state management is introduced (e.g., Riverpod/Bloc), the
 ///   repository injection approach here will be easy to adapt.
 class AppRouter {
@@ -25,17 +27,22 @@ class AppRouter {
     required this.authRepository,
     this.tripRepository,
     this.driverDashboardRepository,
+    this.driverRouteRepository,
   });
 
   final AuthRepository authRepository;
   final TripRepository? tripRepository;
   final DriverDashboardRepository? driverDashboardRepository;
+  final DriverRouteRepository? driverRouteRepository;
 
   TripRepository get _effectiveTripRepository =>
       tripRepository ?? TripRepository();
 
   DriverDashboardRepository get _effectiveDriverDashboardRepository =>
       driverDashboardRepository ?? DriverDashboardRepository();
+
+  DriverRouteRepository get _effectiveDriverRouteRepository =>
+      driverRouteRepository ?? DriverRouteRepository();
 
   /// Generates the route for a given [RouteSettings].
   ///
@@ -99,10 +106,9 @@ class AppRouter {
         authRepository: authRepository,
         dashboardRepository: _effectiveDriverDashboardRepository,
       ),
-      AppRoutes.driverRoutes => const PlaceholderScreen(
-        title: 'My Routes',
-        icon: Icons.route_rounded,
-        description: 'View and manage your assigned taxi routes.',
+      AppRoutes.driverRoutes => DriverRoutesScreen(
+        authRepository: authRepository,
+        routeRepository: _effectiveDriverRouteRepository,
       ),
       AppRoutes.driverTransactions => const PlaceholderScreen(
         title: 'Transactions',

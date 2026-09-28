@@ -20,4 +20,18 @@ class DriverDashboardRepository {
   /// Retrieves recent transactions (earnings and withdrawals).
   Future<List<DriverTransaction>> getRecentTransactions({int limit = 5}) =>
       _service.getRecentTransactions(limit: limit);
+
+  /// Submits a mock withdrawal request.
+  ///
+  /// Returns the resulting [DriverTransaction] on success.
+  /// Throws a [WithdrawalException] on failure.
+  Future<DriverTransaction> submitWithdrawal({
+    required String driverId,
+    required double amount,
+    required String method,
+  }) => _service.submitWithdrawal(
+    driverId: driverId,
+    amount: amount,
+    method: method,
+  );
 }

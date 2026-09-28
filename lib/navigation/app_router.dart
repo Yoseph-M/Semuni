@@ -5,6 +5,7 @@ import '../features/auth/screens/login_screen.dart';
 import '../features/driver/screens/driver_home_screen.dart';
 import '../features/driver/screens/driver_routes_screen.dart';
 import '../features/driver/screens/driver_transactions_screen.dart';
+import '../features/driver/screens/driver_withdraw_screen.dart';
 import '../features/passenger/screens/passenger_home_screen.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/driver_dashboard_repository.dart';
@@ -114,10 +115,9 @@ class AppRouter {
       AppRoutes.driverTransactions => DriverTransactionsScreen(
         repository: _effectiveDriverDashboardRepository,
       ),
-      AppRoutes.driverWithdraw => const PlaceholderScreen(
-        title: 'Withdraw',
-        icon: Icons.account_balance_rounded,
-        description: 'Withdraw your available earnings to your bank account.',
+      AppRoutes.driverWithdraw => DriverWithdrawScreen(
+        authRepository: authRepository,
+        dashboardRepository: _effectiveDriverDashboardRepository,
       ),
       AppRoutes.driverNotifications => const PlaceholderScreen(
         title: 'Notifications',

@@ -11,6 +11,16 @@ abstract interface class DriverDashboardService {
 
   /// Fetches the recent transactions for the authenticated driver.
   Future<List<DriverTransaction>> getRecentTransactions({int limit = 5});
+
+  /// Submits a mock withdrawal request.
+  ///
+  /// Returns the resulting [DriverTransaction] on success.
+  /// Throws a [WithdrawalException] on failure.
+  Future<DriverTransaction> submitWithdrawal({
+    required String driverId,
+    required double amount,
+    required String method,
+  });
 }
 
 /// Mock implementation of [DriverDashboardService].
@@ -105,4 +115,33 @@ class MockDriverDashboardService implements DriverDashboardService {
 
     return transactions.take(limit).toList();
   }
+
+  @override
+  Future<DriverTransaction> submitWithdrawal({
+    required String driverId,
+    required double amount,
+    required String method,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+
+    // Mock: always succeeds.
+    return DriverTransaction(
+      id: 'tx_w_${DateTime.now().millisecondsSinceEpoch}',
+      description: 'Wallet Withdrawal',
+      amount: amount,
+      type: DriverTransactionType.withdrawal,
+      createdAt: DateTime.now(),
+      passengerName: method,
+    );
+  }
+}
+
+/// Exception thrown when a withdrawal operation fails.
+class WithdrawalException implements Exception {
+  const WithdrawalException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'WithdrawalException: $message';
 }

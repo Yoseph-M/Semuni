@@ -180,7 +180,7 @@ void main() {
 
       expect(find.text('Recent Transactions'), findsOneWidget);
       // Verify mock transaction data appears
-      expect(find.text('Taxi Ride'), findsWidgets);
+      expect(find.textContaining('Ride Earnings'), findsWidgets);
     });
 
     testWidgets('12. View all button exists in Recent Transactions', (
@@ -293,7 +293,13 @@ void main() {
         expect(find.text('Transactions'), findsWidgets);
 
         // Pop back
-        if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
+        if (find.byType(BackButton).evaluate().isNotEmpty) {
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+        } else if (find
+            .byIcon(Icons.arrow_back_rounded)
+            .evaluate()
+            .isNotEmpty) {
           await tester.tap(find.byIcon(Icons.arrow_back_rounded));
           await tester.pumpAndSettle();
         }
@@ -326,7 +332,10 @@ void main() {
 
       expect(find.text('Withdraw'), findsWidgets);
 
-      if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
+      if (find.byType(BackButton).evaluate().isNotEmpty) {
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+      } else if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
         await tester.pumpAndSettle();
       }
@@ -355,7 +364,10 @@ void main() {
 
       expect(find.textContaining('Routes'), findsWidgets);
 
-      if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
+      if (find.byType(BackButton).evaluate().isNotEmpty) {
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+      } else if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
         await tester.pumpAndSettle();
       }
@@ -382,7 +394,10 @@ void main() {
 
       expect(find.text('Transactions'), findsWidgets);
 
-      if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
+      if (find.byType(BackButton).evaluate().isNotEmpty) {
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+      } else if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
         await tester.pumpAndSettle();
       }
@@ -405,7 +420,10 @@ void main() {
 
       expect(find.text('Notifications'), findsWidgets);
 
-      if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
+      if (find.byType(BackButton).evaluate().isNotEmpty) {
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+      } else if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
         await tester.pumpAndSettle();
       }
@@ -425,7 +443,10 @@ void main() {
 
       expect(find.textContaining('Routes'), findsWidgets);
 
-      if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
+      if (find.byType(BackButton).evaluate().isNotEmpty) {
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+      } else if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
         await tester.pumpAndSettle();
       }

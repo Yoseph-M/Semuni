@@ -4,6 +4,7 @@ import '../core/widgets/placeholder_screen.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/driver/screens/driver_home_screen.dart';
 import '../features/driver/screens/driver_routes_screen.dart';
+import '../features/driver/screens/driver_settings_screen.dart';
 import '../features/driver/screens/driver_transactions_screen.dart';
 import '../features/driver/screens/driver_withdraw_screen.dart';
 import '../features/passenger/screens/passenger_home_screen.dart';
@@ -124,10 +125,8 @@ class AppRouter {
         icon: Icons.notifications_rounded,
         description: 'Stay updated with payments and route updates.',
       ),
-      AppRoutes.driverSettings => const PlaceholderScreen(
-        title: 'Settings',
-        icon: Icons.settings_rounded,
-        description: 'Manage your driver account and preferences.',
+      AppRoutes.driverSettings => DriverSettingsScreen(
+        authRepository: authRepository,
       ),
 
       // -----------------------------------------------------------------------

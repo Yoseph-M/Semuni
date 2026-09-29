@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smuni/app/app.dart';
 import 'package:smuni/core/utils/app_formatters.dart';
 import 'package:smuni/features/passenger/screens/passenger_home_screen.dart';
+import 'package:smuni/features/passenger/screens/passenger_map_screen.dart';
 import 'package:smuni/repositories/auth_repository.dart';
 import 'package:smuni/repositories/trip_repository.dart';
 
@@ -38,6 +39,9 @@ void main() {
       );
     }
 
+    // -------------------------------------------------------------------------
+    // Test 1: Passenger Home renders with all expected sections
+    // -------------------------------------------------------------------------
     testWidgets('Passenger Home renders with greeting, balance, and actions', (
       WidgetTester tester,
     ) async {
@@ -92,6 +96,9 @@ void main() {
       expect(navBar.selectedIndex, 1);
     });
 
+    // -------------------------------------------------------------------------
+    // Test 2: Full app flow integration — covers Phase 10 Book Ride → Map
+    // -------------------------------------------------------------------------
     testWidgets('Full app flow: Login -> Home -> Navigate to sub-screens', (
       WidgetTester tester,
     ) async {
@@ -109,26 +116,32 @@ void main() {
       await tester.tap(loginButton);
       await tester.pumpAndSettle(const Duration(seconds: 2));
 
-      // 12. Tapping Map navigates to Map placeholder
+      // Confirm we are on Passenger Home
+      expect(find.byType(PassengerHomeScreen), findsOneWidget);
+
+      // ── Test 12: Bottom-nav Map tab navigates to PassengerMapScreen ──
       await tester.tap(find.text('Map'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(seconds: 1));
 
-      // Verify that the placeholder screen displays 'Map'
-      expect(find.text('Map'), findsWidgets);
-      // Verify that unrelated taxi-information text is not displayed
-      expect(find.text('Taxi stations and routes near you.'), findsNothing);
+      // PassengerMapScreen replaces the old PlaceholderScreen
+      expect(find.byType(PassengerMapScreen), findsOneWidget);
 
-      // Verify back button exists and returns to Passenger Home screen
+      // Map header is visible
+      expect(find.text('Taxi Map'), findsOneWidget);
+
+      // Search field is visible
+      expect(find.text('Where do you want to go?'), findsOneWidget);
+
+      // Back button returns to Passenger Home
       final backButton = find.byIcon(Icons.arrow_back_rounded);
       expect(backButton, findsOneWidget);
       await tester.tap(backButton);
       await tester.pumpAndSettle();
 
-      // Verify returned to Passenger Home screen
       expect(find.byType(PassengerHomeScreen), findsOneWidget);
       expect(find.text('Wallet Balance'), findsOneWidget);
 
-      // 13. Tapping Settings navigates to Settings placeholder
+      // ── Test 13: Settings navigates to Settings placeholder ──
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
       expect(find.text('Settings'), findsWidgets);
@@ -138,19 +151,24 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      // 14. Tapping Book Ride navigates to Book Ride placeholder
+      // ── Test 14: Book Ride navigates to PassengerMapScreen (Phase 10) ──
       final bookRideBtn = find.text('Book Ride');
       await tester.ensureVisible(bookRideBtn);
       await tester.tap(bookRideBtn);
-      await tester.pumpAndSettle();
-      expect(find.text('Book Ride'), findsWidgets);
+      await tester.pumpAndSettle(const Duration(seconds: 1));
+
+      // Book Ride now opens the Passenger Map / Route Discovery screen
+      expect(find.byType(PassengerMapScreen), findsOneWidget);
+      expect(find.text('Taxi Map'), findsOneWidget);
+      expect(find.text('Where do you want to go?'), findsOneWidget);
+
       // Pop back
       if (find.byIcon(Icons.arrow_back_rounded).evaluate().isNotEmpty) {
         await tester.tap(find.byIcon(Icons.arrow_back_rounded));
         await tester.pumpAndSettle();
       }
 
-      // 15. Tapping Wallet action navigates to Wallet placeholder
+      // ── Test 15: Wallet action navigates to Wallet placeholder ──
       final walletBtn = find.text('Wallet');
       await tester.ensureVisible(walletBtn);
       await tester.tap(walletBtn);
@@ -162,12 +180,92 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      // 16. Tapping View all navigates to Recent Trips placeholder
+      // ── Test 16: View all navigates to Recent Trips placeholder ──
       final viewAllBtn = find.text('View all');
       await tester.ensureVisible(viewAllBtn);
       await tester.tap(viewAllBtn);
       await tester.pumpAndSettle();
       expect(find.text('Recent Trips'), findsWidgets);
     });
+
+    // -------------------------------------------------------------------------
+    // Test 3: Phase 10 Complete Flow:
+    // Passenger Home -> Book Ride -> Map -> Search -> Select Route -> Details -> Book
+    // -------------------------------------------------------------------------
+    testWidgets(
+      'Phase 10 Flow: Home -> Book Ride -> Map -> Search -> Route Details -> Book',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(const SmuniApp());
+        await tester.pumpAndSettle();
+
+        // Login as passenger
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Username'),
+          'yosef',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Password'),
+          'password',
+        );
+        final loginButton = find.text('Login');
+        await tester.ensureVisible(loginButton);
+        await tester.tap(loginButton);
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+
+        // 1. Passenger Home renders and Book Ride exists
+        expect(find.byType(PassengerHomeScreen), findsOneWidget);
+        final bookRideBtn = find.text('Book Ride');
+        expect(bookRideBtn, findsOneWidget);
+
+        // 2. Tap Book Ride -> navigates to PassengerMapScreen
+        await tester.tap(bookRideBtn);
+        await tester.pumpAndSettle(const Duration(seconds: 1));
+
+        expect(find.byType(PassengerMapScreen), findsOneWidget);
+        expect(find.text('Taxi Map'), findsOneWidget);
+
+        // 3. Search destination
+        final searchField = find.byType(TextField);
+        expect(searchField, findsOneWidget);
+        await tester.enterText(searchField, 'Piazza');
+        await tester.pumpAndSettle(const Duration(seconds: 1));
+
+        // 4. Destination results / routes are displayed
+        expect(find.text('Matching Routes'), findsOneWidget);
+        expect(find.textContaining('ETB'), findsWidgets);
+
+        // 5. Select route -> route details bottom sheet opens
+        final routeCard = find.ancestor(
+          of: find.textContaining('ETB').first,
+          matching: find.byType(InkWell),
+        );
+        expect(routeCard, findsOneWidget);
+        await tester.tap(routeCard);
+        await tester.pumpAndSettle();
+
+        // 6. View route details
+        expect(
+          find.text('From').evaluate().isNotEmpty ||
+              find.text('To').evaluate().isNotEmpty,
+          isTrue,
+        );
+
+        // Scroll the sheet up to reveal the CTA
+        await tester.drag(
+          find.byType(CustomScrollView).last,
+          const Offset(0, -300),
+        );
+        await tester.pumpAndSettle();
+
+        // 7. Continue / Book button
+        final bookThisRideBtn = find.text('Book This Ride');
+        expect(bookThisRideBtn, findsOneWidget);
+        await tester.tap(bookThisRideBtn);
+        await tester.pumpAndSettle();
+
+        // Lands on Book Ride destination
+        expect(find.text('Book Ride'), findsWidgets);
+      },
+    );
   });
 }

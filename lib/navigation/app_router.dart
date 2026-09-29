@@ -8,9 +8,11 @@ import '../features/driver/screens/driver_settings_screen.dart';
 import '../features/driver/screens/driver_transactions_screen.dart';
 import '../features/driver/screens/driver_withdraw_screen.dart';
 import '../features/passenger/screens/passenger_home_screen.dart';
+import '../features/passenger/screens/passenger_map_screen.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/driver_dashboard_repository.dart';
 import '../repositories/driver_route_repository.dart';
+import '../repositories/passenger_route_repository.dart';
 import '../repositories/trip_repository.dart';
 import 'app_routes.dart';
 
@@ -31,12 +33,14 @@ class AppRouter {
     this.tripRepository,
     this.driverDashboardRepository,
     this.driverRouteRepository,
+    this.passengerRouteRepository,
   });
 
   final AuthRepository authRepository;
   final TripRepository? tripRepository;
   final DriverDashboardRepository? driverDashboardRepository;
   final DriverRouteRepository? driverRouteRepository;
+  final PassengerRouteRepository? passengerRouteRepository;
 
   TripRepository get _effectiveTripRepository =>
       tripRepository ?? TripRepository();
@@ -46,6 +50,9 @@ class AppRouter {
 
   DriverRouteRepository get _effectiveDriverRouteRepository =>
       driverRouteRepository ?? DriverRouteRepository();
+
+  PassengerRouteRepository get _effectivePassengerRouteRepository =>
+      passengerRouteRepository ?? PassengerRouteRepository();
 
   /// Generates the route for a given [RouteSettings].
   ///
@@ -71,10 +78,8 @@ class AppRouter {
         authRepository: authRepository,
         tripRepository: _effectiveTripRepository,
       ),
-      AppRoutes.passengerMap => const PlaceholderScreen(
-        title: 'Map',
-        icon: Icons.map_rounded,
-        description: 'Discover taxi stations and routes near you.\nComing in a future phase.',
+      AppRoutes.passengerMap => PassengerMapScreen(
+        passengerRouteRepository: _effectivePassengerRouteRepository,
       ),
       AppRoutes.passengerWallet => const PlaceholderScreen(
         title: 'Wallet',

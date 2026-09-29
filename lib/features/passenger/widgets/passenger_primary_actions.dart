@@ -22,7 +22,7 @@ class PassengerPrimaryActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Action 1: Book Ride
+        // Action 1: Book Ride — navigates to the Map/Route Discovery screen.
         Expanded(
           child: _ActionCard(
             title: 'Book Ride',
@@ -31,7 +31,7 @@ class PassengerPrimaryActions extends StatelessWidget {
             onTap:
                 onBookRideTap ??
                 () {
-                  Navigator.of(context).pushNamed(AppRoutes.passengerBookRide);
+                  Navigator.of(context).pushNamed(AppRoutes.passengerMap);
                 },
           ),
         ),

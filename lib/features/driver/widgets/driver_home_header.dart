@@ -31,7 +31,7 @@ class DriverHomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final greeting = AppFormatters.timeBasedGreeting();
-    final displayName = driverName.isNotEmpty ? driverName : 'Abel';
+    final displayName = driverName.isNotEmpty ? driverName : 'Driver';
 
     return Row(
       children: [

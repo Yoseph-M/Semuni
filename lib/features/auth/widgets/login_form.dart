@@ -112,7 +112,8 @@ class _LoginFormState extends State<LoginForm> {
       } else {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Invalid username or password. Please try again.';
+          _errorMessage = result.errorMessage ??
+              'Invalid username or password. Please try again.';
         });
       }
     } catch (_) {
@@ -232,9 +233,9 @@ class _LoginFormState extends State<LoginForm> {
             ),
             decoration: InputDecoration(
               labelText: 'Username',
-              hintText: _selectedRole.isPassenger ? 'e.g. yosef' : 'e.g. abel',
+              hintText: 'e.g. testpassenger',
               prefixIcon: const Icon(
-                Icons.person_outline_rounded,
+                Icons.phone_outlined,
                 size: AppConstants.iconMd,
               ),
             ),
@@ -327,42 +328,6 @@ class _LoginFormState extends State<LoginForm> {
                 : const Text('Login'),
           ),
 
-          const SizedBox(height: AppConstants.spacingXl),
-
-          // Subtle Demo/Test Credentials Helper
-          Container(
-            padding: const EdgeInsets.all(AppConstants.spacingSm),
-            decoration: BoxDecoration(
-              color: AppColors.primaryTint.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(AppConstants.radiusSm),
-              border: Border.all(
-                color: AppColors.border.withValues(alpha: 0.6),
-                width: 1.0,
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.info_outline_rounded,
-                  size: AppConstants.iconSm,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(width: AppConstants.spacingXs),
-                Expanded(
-                  child: Text(
-                    _selectedRole.isPassenger
-                        ? 'Demo passenger: yosef  |  password: password'
-                        : 'Demo driver: abel  |  password: password',
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: AppColors.primaryDark,
-                      fontSize: 11.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );

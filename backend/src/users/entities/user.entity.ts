@@ -1,0 +1,29 @@
+import { Entity, Column } from 'typeorm';
+import { BaseEntity } from '../../common/entities/base.entity';
+import { UserRole, UserStatus } from '../../common/enums';
+
+@Entity('users')
+export class User extends BaseEntity {
+  /** Unique login handle — the identity used by /auth/login. */
+  @Column({ unique: true })
+  username: string;
+
+  /** Optional contact detail, used for SMS/push once that lands. */
+  @Column({ nullable: true })
+  phone?: string;
+
+  @Column({ nullable: true })
+  email?: string;
+
+  @Column()
+  passwordHash: string;
+
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.PASSENGER })
+  role: UserRole;
+
+  @Column({ type: 'enum', enum: UserStatus, default: UserStatus.ACTIVE })
+  status: UserStatus;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  lastLoginAt?: Date;
+}

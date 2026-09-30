@@ -25,7 +25,9 @@ abstract interface class DriverDashboardService {
 
 /// Mock implementation of [DriverDashboardService].
 ///
-/// Supplies realistic Ethiopian taxi driver statistics and financial transactions.
+/// Supplies generic placeholder activity and transaction records so the
+/// dashboard UI has structure without preloading any specific corridor,
+/// passenger, or fare data that might be mistaken for production records.
 class MockDriverDashboardService implements DriverDashboardService {
   static const Duration _simulatedDelay = Duration(milliseconds: 300);
 
@@ -34,9 +36,9 @@ class MockDriverDashboardService implements DriverDashboardService {
     await Future<void>.delayed(_simulatedDelay);
 
     return const DriverActivity(
-      completedRides: 12,
-      totalEarnings: 1850.00,
-      averageFare: 154.17,
+      completedRides: 0,
+      totalEarnings: 0.00,
+      averageFare: 0.00,
     );
   }
 
@@ -49,67 +51,67 @@ class MockDriverDashboardService implements DriverDashboardService {
     final List<DriverTransaction> transactions = [
       DriverTransaction(
         id: 'tx_001',
-        description: 'Ride Earnings: Bole → Piazza',
-        amount: 150.00,
+        description: 'Trip payment',
+        amount: 0.00,
         type: DriverTransactionType.payment,
         createdAt: DateTime(now.year, now.month, now.day, 10, 42),
-        passengerName: 'Yosef M.',
+        passengerName: 'Passenger',
       ),
       DriverTransaction(
         id: 'tx_002',
-        description: 'Ride Earnings: Megenagna → CMC',
-        amount: 85.00,
+        description: 'Trip payment',
+        amount: 0.00,
         type: DriverTransactionType.payment,
         createdAt: DateTime(now.year, now.month, now.day, 9, 15),
-        passengerName: 'Sara T.',
+        passengerName: 'Passenger',
       ),
       DriverTransaction(
         id: 'tx_003',
         description: 'Wallet Withdrawal',
-        amount: 500.00,
+        amount: 0.00,
         type: DriverTransactionType.withdrawal,
         createdAt: DateTime(now.year, now.month, now.day - 1, 18, 10),
-        passengerName: 'Telebirr',
+        passengerName: 'Withdrawal destination',
       ),
       DriverTransaction(
         id: 'tx_004',
-        description: 'Ride Earnings: Mexico → Saris',
-        amount: 120.00,
+        description: 'Trip payment',
+        amount: 0.00,
         type: DriverTransactionType.payment,
         createdAt: DateTime(now.year, now.month, now.day - 1, 15, 30),
-        passengerName: 'Almaz B.',
+        passengerName: 'Passenger',
       ),
       DriverTransaction(
         id: 'tx_005',
-        description: 'Ride Earnings: Kazanchis → 4 Kilo',
-        amount: 60.00,
+        description: 'Trip payment',
+        amount: 0.00,
         type: DriverTransactionType.payment,
         createdAt: DateTime(now.year, now.month, now.day - 1, 12, 10),
-        passengerName: 'Dawit A.',
+        passengerName: 'Passenger',
       ),
       DriverTransaction(
         id: 'tx_006',
-        description: 'Ride Earnings: 4 Kilo → Piassa',
-        amount: 45.00,
+        description: 'Trip payment',
+        amount: 0.00,
         type: DriverTransactionType.payment,
         createdAt: DateTime(now.year, now.month, now.day - 1, 11, 45),
-        passengerName: 'Selam Y.',
+        passengerName: 'Passenger',
       ),
       DriverTransaction(
         id: 'tx_007',
         description: 'Wallet Withdrawal',
-        amount: 1000.00,
+        amount: 0.00,
         type: DriverTransactionType.withdrawal,
         createdAt: DateTime(now.year, now.month, now.day - 2, 16, 0),
-        passengerName: 'Commercial Bank of Ethiopia',
+        passengerName: 'Withdrawal destination',
       ),
       DriverTransaction(
         id: 'tx_008',
         description: 'System Adjustment',
-        amount: 15.00,
+        amount: 0.00,
         type: DriverTransactionType.adjustment,
         createdAt: DateTime(now.year, now.month, now.day - 2, 10, 0),
-        passengerName: 'SMUNI Admin',
+        passengerName: 'System',
       ),
     ];
 

@@ -14,76 +14,39 @@ abstract interface class DriverRouteService {
 
 /// Mock implementation of [DriverRouteService].
 ///
-/// Supplies realistic Ethiopian urban taxi routes (Addis Ababa corridors)
-/// with realistic fares, stops, distance, and active status.
+/// Supplies generic placeholder routes and stops so the UI can be exercised
+/// without a real backend, without preloading real corridor data or
+/// hardcoded fare values. Replace with an API service when ready.
 class MockDriverRouteService implements DriverRouteService {
   MockDriverRouteService({
     this.simulatedDelay = const Duration(milliseconds: 300),
     List<DriverRoute>? initialRoutes,
-  }) : _routes = initialRoutes ?? _defaultRoutes;
+  }) : _routes = initialRoutes ?? _defaultRoutes();
 
   final Duration simulatedDelay;
   final List<DriverRoute> _routes;
 
-  static const List<DriverRoute> _defaultRoutes = [
-    DriverRoute(
-      id: 'route_01',
-      name: 'Bole ⇄ Piazza',
-      routeCode: 'ET-RT-01',
-      startLocation: 'Bole Medhanialem',
-      endLocation: 'Piazza (Churchill Ave)',
-      fare: 25.00,
-      isActive: true,
-      distanceKm: 9.8,
-      estimatedDuration: '30–40 min',
-      intermediateStops: [
-        'Olympia',
-        'Meskel Square',
-        'Stadium',
-        'Tewodros Square',
-      ],
-      operatingHours: '06:00 AM – 10:00 PM',
-    ),
-    DriverRoute(
-      id: 'route_02',
-      name: 'Megenagna ⇄ Tor Hailoch',
-      routeCode: 'ET-RT-04',
-      startLocation: 'Megenagna (Zefmesh)',
-      endLocation: 'Tor Hailoch',
-      fare: 30.00,
-      isActive: true,
-      distanceKm: 12.2,
-      estimatedDuration: '40–50 min',
-      intermediateStops: ['Haya Hulet', 'Urael', 'Mexico', 'St. Lideta'],
-      operatingHours: '05:30 AM – 09:30 PM',
-    ),
-    DriverRoute(
-      id: 'route_03',
-      name: 'Merkato ⇄ Saris',
-      routeCode: 'ET-RT-09',
-      startLocation: 'Merkato (Military Tera)',
-      endLocation: 'Saris (Abo)',
-      fare: 20.00,
-      isActive: false,
-      distanceKm: 8.5,
-      estimatedDuration: '25–35 min',
-      intermediateStops: ['Sebategna', 'Autobus Tera', 'Gofa Camp', 'Kera'],
-      operatingHours: '06:00 AM – 09:00 PM',
-    ),
-    DriverRoute(
-      id: 'route_04',
-      name: '4 Kilo ⇄ Kality',
-      routeCode: 'ET-RT-15',
-      startLocation: '4 Kilo (AAU)',
-      endLocation: 'Kality (Total)',
-      fare: 35.00,
-      isActive: false,
-      distanceKm: 16.0,
-      estimatedDuration: '50–60 min',
-      intermediateStops: ['Piazza', 'Mexico', 'Gotera', 'Saris'],
-      operatingHours: '06:00 AM – 08:30 PM',
-    ),
-  ];
+  static List<DriverRoute> _defaultRoutes() {
+    return List<DriverRoute>.generate(4, (i) {
+      final n = i + 1;
+      return DriverRoute(
+        id: 'route_$n',
+        name: 'Assigned Route $n',
+        startLocation: 'Stop A$n',
+        endLocation: 'Stop Z$n',
+        fare: 0.00,
+        isActive: i < 2,
+        routeCode: '',
+        distanceKm: null,
+        estimatedDuration: null,
+        intermediateStops: List<String>.generate(
+          3,
+          (j) => 'Intermediate ${String.fromCharCode(65 + j)}$n',
+        ),
+        operatingHours: null,
+      );
+    }, growable: false);
+  }
 
   @override
   Future<List<DriverRoute>> getAssignedRoutes() async {

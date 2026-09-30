@@ -25,7 +25,7 @@ class PassengerHomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final greeting = AppFormatters.timeBasedGreeting();
-    final displayName = passengerName.isNotEmpty ? passengerName : 'Yosef';
+    final displayName = passengerName.isNotEmpty ? passengerName : 'Passenger';
 
     return Row(
       children: [

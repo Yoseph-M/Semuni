@@ -8,12 +8,15 @@ import '../services/mock/mock_auth_service.dart';
 /// All authentication operations go through this repository.
 ///
 /// Architecture:
-///   UI → AuthRepository → AuthService (Mock or Real API)
+///   UI → AuthRepository → AuthService
 ///
-/// To connect to a real backend: inject a real [AuthService] implementation.
+/// The default implementation is [ApiAuthService], which authenticates against
+/// the real NestJS backend. [MockAuthService] is an offline stub used only for
+/// widget tests and must be injected explicitly. No credentials are hardcoded
+/// here — the database is the single source of truth for identities.
 class AuthRepository {
   AuthRepository({AuthService? authService})
-    : _authService = authService ?? MockAuthService();
+    : _authService = authService ?? ApiAuthService();
 
   final AuthService _authService;
 

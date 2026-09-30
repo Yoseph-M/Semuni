@@ -13,7 +13,7 @@ class DriverTransaction {
 
   final String id;
 
-  /// Human-readable description, e.g. "Payment from Yosef".
+  /// Human-readable description, e.g. "Trip payment".
   final String description;
 
   /// Transaction amount in ETB. Always positive; use [type] for direction.

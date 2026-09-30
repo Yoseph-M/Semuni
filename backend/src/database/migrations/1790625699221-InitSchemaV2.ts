@@ -1,0 +1,125 @@
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class InitSchemaV21790625699221 implements MigrationInterface {
+    name = 'InitSchemaV21790625699221'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."withdrawals_currency_enum" AS ENUM('ETB'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."withdrawals_status_enum" AS ENUM('PENDING', 'PROCESSING', 'SUCCESS', 'FAILED'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."withdrawals_destinationtype_enum" AS ENUM('BANK', 'MOBILE_MONEY'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."withdrawals_provider_enum" AS ENUM('MOCK', 'TELEBIRR', 'CHAPA', 'BANK'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "withdrawals" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "userId" character varying NOT NULL, "amount" integer NOT NULL, "currency" "public"."withdrawals_currency_enum" NOT NULL DEFAULT 'ETB', "status" "public"."withdrawals_status_enum" NOT NULL DEFAULT 'PENDING', "destinationType" "public"."withdrawals_destinationtype_enum" NOT NULL DEFAULT 'BANK', "destination" character varying, "destinationAccount" character varying, "provider" "public"."withdrawals_provider_enum" NOT NULL DEFAULT 'MOCK', "idempotencyKey" character varying, "externalReference" character varying, "completedAt" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_448416a5a1d5de32c06e3bbbdd6" UNIQUE ("idempotencyKey"), CONSTRAINT "PK_9871ec481baa7755f8bd8b7c7e9" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`CREATE INDEX "IDX_79a3949e02a4652fb2b2a0ccd4" ON "withdrawals" ("userId") `);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."users_role_enum" AS ENUM('PASSENGER', 'DRIVER', 'ADMIN'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."users_status_enum" AS ENUM('ACTIVE', 'SUSPENDED', 'INACTIVE'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "users" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "phone" character varying NOT NULL, "email" character varying, "passwordHash" character varying NOT NULL, "role" "public"."users_role_enum" NOT NULL DEFAULT 'PASSENGER', "status" "public"."users_status_enum" NOT NULL DEFAULT 'ACTIVE', "lastLoginAt" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_a000cca60bcf04454e727699490" UNIQUE ("phone"), CONSTRAINT "PK_a3ffb1c0c8416b9fc6f907b7433" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."wallets_currency_enum" AS ENUM('ETB'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."wallets_status_enum" AS ENUM('ACTIVE', 'FROZEN', 'CLOSED'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "wallets" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "balance" integer NOT NULL DEFAULT '0', "currency" "public"."wallets_currency_enum" NOT NULL DEFAULT 'ETB', "status" "public"."wallets_status_enum" NOT NULL DEFAULT 'ACTIVE', "userId" uuid, CONSTRAINT "REL_2ecdb33f23e9a6fc392025c0b9" UNIQUE ("userId"), CONSTRAINT "PK_8402e5df5a30a229380e83e4f7e" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."vehicles_vehicletype_enum" AS ENUM('MINIBUS'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."vehicles_status_enum" AS ENUM('ACTIVE', 'INACTIVE', 'MAINTENANCE'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "vehicles" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "plateNumber" character varying NOT NULL, "vehicleType" "public"."vehicles_vehicletype_enum" NOT NULL DEFAULT 'MINIBUS', "capacity" integer NOT NULL DEFAULT '12', "status" "public"."vehicles_status_enum" NOT NULL DEFAULT 'ACTIVE', "driverId" character varying, CONSTRAINT "UQ_66ea96381a7a7ceb35c72f36625" UNIQUE ("plateNumber"), CONSTRAINT "PK_18d8646b59304dce4af3a9e35b6" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."trips_currency_enum" AS ENUM('ETB'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."trips_status_enum" AS ENUM('PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."trips_paymentstatus_enum" AS ENUM('PENDING', 'COMPLETED', 'UNPAID', 'PAID', 'REFUNDED', 'FAILED'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "trips" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "passengerId" character varying NOT NULL, "driverId" character varying NOT NULL, "vehicleId" character varying, "routeId" character varying, "origin" character varying NOT NULL, "destination" character varying NOT NULL, "fareAmount" integer NOT NULL, "currency" "public"."trips_currency_enum" NOT NULL DEFAULT 'ETB', "tariffId" character varying, "tariffRuleId" character varying, "tariffVersion" character varying, "status" "public"."trips_status_enum" NOT NULL DEFAULT 'PENDING', "paymentStatus" "public"."trips_paymentstatus_enum" NOT NULL DEFAULT 'UNPAID', "paymentId" character varying, "startedAt" TIMESTAMP WITH TIME ZONE, "completedAt" TIMESTAMP WITH TIME ZONE, CONSTRAINT "PK_f71c231dee9c05a9522f9e840f5" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`CREATE INDEX "IDX_a4d572e126f5475433560c9a37" ON "trips" ("passengerId") `);
+        await queryRunner.query(`CREATE INDEX "IDX_fc5a8911f85074a660a4304baa" ON "trips" ("driverId") `);
+        await queryRunner.query(`CREATE INDEX "IDX_397f7e5b7ea3f95452ad6899f2" ON "trips" ("paymentId") `);
+        await queryRunner.query(`CREATE TABLE "route_stops" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "name" character varying NOT NULL, "sequence" integer NOT NULL, "latitude" numeric(10,6), "longitude" numeric(10,6), "routeId" uuid, CONSTRAINT "PK_22c09afc24c0a7a13644c629073" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."routes_status_enum" AS ENUM('ACTIVE', 'INACTIVE'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "routes" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "name" character varying NOT NULL, "origin" character varying NOT NULL, "destination" character varying NOT NULL, "code" character varying NOT NULL, "status" "public"."routes_status_enum" NOT NULL DEFAULT 'ACTIVE', CONSTRAINT "UQ_bd22d1af9090f36374e21e42208" UNIQUE ("code"), CONSTRAINT "PK_76100511cdfa1d013c859f01d8b" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`CREATE TABLE "tariff_rules" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "startStopSequence" integer, "endStopSequence" integer, "basePrice" integer NOT NULL, "tariffId" uuid, "routeId" uuid, CONSTRAINT "PK_ac2ec406904b2e556cf959b9b19" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."tariffs_currency_enum" AS ENUM('ETB'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "tariffs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "name" character varying NOT NULL, "validFrom" TIMESTAMP WITH TIME ZONE NOT NULL, "validTo" TIMESTAMP WITH TIME ZONE, "currency" "public"."tariffs_currency_enum" NOT NULL DEFAULT 'ETB', CONSTRAINT "PK_7f32baf8d8b4bb0cf4d7ac97741" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."settlements_currency_enum" AS ENUM('ETB'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."settlements_status_enum" AS ENUM('PENDING', 'PROCESSING', 'SUCCESS', 'FAILED'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "settlements" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "driverId" character varying NOT NULL, "withdrawalId" character varying, "amount" integer NOT NULL, "currency" "public"."settlements_currency_enum" NOT NULL DEFAULT 'ETB', "status" "public"."settlements_status_enum" NOT NULL DEFAULT 'PENDING', "externalReference" character varying, "completedAt" TIMESTAMP WITH TIME ZONE, CONSTRAINT "PK_5f523ce152b84e818bff9467aab" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`CREATE INDEX "IDX_b79fc157dd28fd0e13e2335134" ON "settlements" ("driverId") `);
+        await queryRunner.query(`CREATE INDEX "IDX_64b29093be1cc8297b6f550295" ON "settlements" ("withdrawalId") `);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."payments_currency_enum" AS ENUM('ETB'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."payments_status_enum" AS ENUM('PENDING', 'SUCCESS', 'FAILED', 'REFUNDED'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."payments_provider_enum" AS ENUM('MOCK', 'TELEBIRR', 'CHAPA', 'BANK'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "payments" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "tripId" character varying NOT NULL, "passengerId" character varying NOT NULL, "driverId" character varying NOT NULL, "routeId" character varying, "amount" integer NOT NULL, "currency" "public"."payments_currency_enum" NOT NULL DEFAULT 'ETB', "status" "public"."payments_status_enum" NOT NULL DEFAULT 'PENDING', "provider" "public"."payments_provider_enum" NOT NULL DEFAULT 'MOCK', "providerReference" character varying, "idempotencyKey" character varying NOT NULL, "receiptNumber" character varying, "completedAt" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_743b9fb1d2a059f2f7860418e4e" UNIQUE ("idempotencyKey"), CONSTRAINT "PK_197ab7af18c93fbb0c9b28b4a59" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`CREATE INDEX "IDX_4277aa2c0e3a4a3591474dbea2" ON "payments" ("tripId") `);
+        await queryRunner.query(`CREATE INDEX "IDX_2d94fea9aaefaaeab8c8aee988" ON "payments" ("passengerId") `);
+        await queryRunner.query(`CREATE INDEX "IDX_cb34927492b7562bfbd1a807bb" ON "payments" ("driverId") `);
+        await queryRunner.query(`CREATE TABLE "passengers" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "userId" uuid NOT NULL, "fullName" character varying NOT NULL, "phone" character varying NOT NULL, "walletId" character varying, CONSTRAINT "REL_ffc3292d96c45f5524c82165ed" UNIQUE ("userId"), CONSTRAINT "PK_9863c72acd866e4529f65c6c98c" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."ledger_entries_entrytype_enum" AS ENUM('TOP_UP', 'TRIP_PAYMENT', 'DRIVER_EARNING', 'WITHDRAWAL', 'REFUND', 'ADJUSTMENT'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."ledger_entries_direction_enum" AS ENUM('CREDIT', 'DEBIT'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."ledger_entries_currency_enum" AS ENUM('ETB'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "ledger_entries" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "walletId" character varying NOT NULL, "transactionId" character varying, "entryType" "public"."ledger_entries_entrytype_enum" NOT NULL, "direction" "public"."ledger_entries_direction_enum" NOT NULL, "amount" integer NOT NULL, "currency" "public"."ledger_entries_currency_enum" NOT NULL DEFAULT 'ETB', "balanceBefore" integer NOT NULL, "balanceAfter" integer NOT NULL, "referenceType" character varying, "referenceId" character varying, "description" character varying, CONSTRAINT "PK_6efcb84411d3f08b08450ae75d5" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`CREATE INDEX "IDX_df977c08d98fab6543724d7485" ON "ledger_entries" ("walletId") `);
+        await queryRunner.query(`CREATE INDEX "IDX_ce01dd5f8bde23f503bf01ffac" ON "ledger_entries" ("transactionId") `);
+        await queryRunner.query(`CREATE INDEX "IDX_2934a5f6d6365554933231a338" ON "ledger_entries" ("referenceId") `);
+        await queryRunner.query(`DO $$ BEGIN CREATE TYPE "public"."drivers_status_enum" AS ENUM('PENDING', 'ACTIVE', 'SUSPENDED', 'INACTIVE'); EXCEPTION WHEN duplicate_object THEN null; END $$`);
+        await queryRunner.query(`CREATE TABLE "drivers" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "userId" uuid NOT NULL, "fullName" character varying NOT NULL, "phone" character varying NOT NULL, "licenseNumber" character varying NOT NULL, "status" "public"."drivers_status_enum" NOT NULL DEFAULT 'PENDING', "walletId" character varying, CONSTRAINT "REL_57d866371f392f459cd9ee46f6" UNIQUE ("userId"), CONSTRAINT "PK_92ab3fb69e566d3eb0cae896047" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`ALTER TABLE "wallets" ADD CONSTRAINT "FK_2ecdb33f23e9a6fc392025c0b97" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "route_stops" ADD CONSTRAINT "FK_352e45964a86c097a435f643004" FOREIGN KEY ("routeId") REFERENCES "routes"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "tariff_rules" ADD CONSTRAINT "FK_2dea436d15a02d899c52157b700" FOREIGN KEY ("tariffId") REFERENCES "tariffs"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "tariff_rules" ADD CONSTRAINT "FK_2459dfdb7c5980623d0177d3910" FOREIGN KEY ("routeId") REFERENCES "routes"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "passengers" ADD CONSTRAINT "FK_ffc3292d96c45f5524c82165ed7" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "drivers" ADD CONSTRAINT "FK_57d866371f392f459cd9ee46f6a" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "drivers" DROP CONSTRAINT "FK_57d866371f392f459cd9ee46f6a"`);
+        await queryRunner.query(`ALTER TABLE "passengers" DROP CONSTRAINT "FK_ffc3292d96c45f5524c82165ed7"`);
+        await queryRunner.query(`ALTER TABLE "tariff_rules" DROP CONSTRAINT "FK_2459dfdb7c5980623d0177d3910"`);
+        await queryRunner.query(`ALTER TABLE "tariff_rules" DROP CONSTRAINT "FK_2dea436d15a02d899c52157b700"`);
+        await queryRunner.query(`ALTER TABLE "route_stops" DROP CONSTRAINT "FK_352e45964a86c097a435f643004"`);
+        await queryRunner.query(`ALTER TABLE "wallets" DROP CONSTRAINT "FK_2ecdb33f23e9a6fc392025c0b97"`);
+        await queryRunner.query(`DROP TABLE "drivers"`);
+        await queryRunner.query(`DROP TYPE "public"."drivers_status_enum"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_2934a5f6d6365554933231a338"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_ce01dd5f8bde23f503bf01ffac"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_df977c08d98fab6543724d7485"`);
+        await queryRunner.query(`DROP TABLE "ledger_entries"`);
+        await queryRunner.query(`DROP TYPE "public"."ledger_entries_currency_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."ledger_entries_direction_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."ledger_entries_entrytype_enum"`);
+        await queryRunner.query(`DROP TABLE "passengers"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_cb34927492b7562bfbd1a807bb"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_2d94fea9aaefaaeab8c8aee988"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_4277aa2c0e3a4a3591474dbea2"`);
+        await queryRunner.query(`DROP TABLE "payments"`);
+        await queryRunner.query(`DROP TYPE "public"."payments_provider_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."payments_status_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."payments_currency_enum"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_64b29093be1cc8297b6f550295"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_b79fc157dd28fd0e13e2335134"`);
+        await queryRunner.query(`DROP TABLE "settlements"`);
+        await queryRunner.query(`DROP TYPE "public"."settlements_status_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."settlements_currency_enum"`);
+        await queryRunner.query(`DROP TABLE "tariffs"`);
+        await queryRunner.query(`DROP TYPE "public"."tariffs_currency_enum"`);
+        await queryRunner.query(`DROP TABLE "tariff_rules"`);
+        await queryRunner.query(`DROP TABLE "routes"`);
+        await queryRunner.query(`DROP TYPE "public"."routes_status_enum"`);
+        await queryRunner.query(`DROP TABLE "route_stops"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_397f7e5b7ea3f95452ad6899f2"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_fc5a8911f85074a660a4304baa"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_a4d572e126f5475433560c9a37"`);
+        await queryRunner.query(`DROP TABLE "trips"`);
+        await queryRunner.query(`DROP TYPE "public"."trips_paymentstatus_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."trips_status_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."trips_currency_enum"`);
+        await queryRunner.query(`DROP TABLE "vehicles"`);
+        await queryRunner.query(`DROP TYPE "public"."vehicles_status_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."vehicles_vehicletype_enum"`);
+        await queryRunner.query(`DROP TABLE "wallets"`);
+        await queryRunner.query(`DROP TYPE "public"."wallets_status_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."wallets_currency_enum"`);
+        await queryRunner.query(`DROP TABLE "users"`);
+        await queryRunner.query(`DROP TYPE "public"."users_status_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."users_role_enum"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_79a3949e02a4652fb2b2a0ccd4"`);
+        await queryRunner.query(`DROP TABLE "withdrawals"`);
+        await queryRunner.query(`DROP TYPE "public"."withdrawals_provider_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."withdrawals_destinationtype_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."withdrawals_status_enum"`);
+        await queryRunner.query(`DROP TYPE "public"."withdrawals_currency_enum"`);
+    }
+
+}

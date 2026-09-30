@@ -35,8 +35,8 @@ class PassengerHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final passenger = authRepository.currentPassenger;
-    final displayName = passenger?.firstName ?? 'Yosef';
-    final balance = passenger?.walletBalance ?? 1250.00;
+    final displayName = passenger?.firstName ?? 'Passenger';
+    final balance = passenger?.walletBalance ?? 0.0;
 
     return Scaffold(
       backgroundColor: AppColors.background,

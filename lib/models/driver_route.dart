@@ -27,7 +27,7 @@ class DriverRoute {
   /// Whether this route is currently active/assigned.
   final bool isActive;
 
-  /// Official transport route identifier code (e.g. "ET-RT-01").
+  /// Official transport route identifier code (e.g. a system-assigned reference).
   final String? routeCode;
 
   /// Total distance in kilometers.

@@ -10,6 +10,7 @@ class Trip {
     required this.completedAt,
     required this.driverName,
     required this.status,
+    this.routeCode,
   });
 
   final String id;
@@ -19,11 +20,12 @@ class Trip {
   final DateTime completedAt;
   final String driverName;
   final TripStatus status;
+  final String? routeCode;
 
   @override
   String toString() =>
-      'Trip(id: $id, from: $fromLocation, to: $toLocation, amount: $amountPaid)';
+      'Trip(id: $id, from: $fromLocation, to: $toLocation, amount: $amountPaid, status: $status)';
 }
 
 /// Status of a passenger trip.
-enum TripStatus { completed, cancelled, inProgress }
+enum TripStatus { completed, cancelled, inProgress, requested }

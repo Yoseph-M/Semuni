@@ -79,4 +79,36 @@ class AuthRepository {
     _currentPassenger = null;
     _currentDriver = null;
   }
+
+  /// Default mock passenger for testing or direct navigation without prior login.
+  static const Passenger defaultMockPassenger = Passenger(
+    id: 'p_001',
+    name: 'Yosef Mekonnen',
+    username: 'yosef',
+    phone: '+251911234567',
+    walletBalance: 1250.00,
+  );
+
+  /// Available wallet balance for the authenticated passenger (or default mock passenger).
+  double get passengerWalletBalance =>
+      _currentPassenger?.walletBalance ?? defaultMockPassenger.walletBalance;
+
+  /// Sets the currently active passenger (useful for tests or mock setup).
+  void setCurrentPassenger(Passenger? passenger) {
+    _currentPassenger = passenger;
+  }
+
+  /// Deducts [amount] from the current passenger's wallet balance if sufficient.
+  ///
+  /// Returns `true` if deduction succeeded, or `false` if balance was insufficient.
+  bool deductPassengerBalance(double amount) {
+    final activePassenger = _currentPassenger ?? defaultMockPassenger;
+    if (activePassenger.walletBalance < amount) {
+      return false;
+    }
+    _currentPassenger = activePassenger.copyWith(
+      walletBalance: activePassenger.walletBalance - amount,
+    );
+    return true;
+  }
 }

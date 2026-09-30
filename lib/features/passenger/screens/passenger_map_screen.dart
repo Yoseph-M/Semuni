@@ -1324,14 +1324,16 @@ class _RouteDetailSheet extends StatelessWidget {
                           onPressed: route.isAvailable
                               ? () {
                                   Navigator.of(context).pop();
-                                  Navigator.of(context)
-                                      .pushNamed(AppRoutes.passengerBookRide);
+                                  Navigator.of(context).pushNamed(
+                                    AppRoutes.passengerBookRide,
+                                    arguments: route,
+                                  );
                                 }
                               : null,
-                          icon: const Icon(Icons.directions_car_rounded),
+                          icon: const Icon(Icons.arrow_forward_rounded),
                           label: Text(
                             route.isAvailable
-                                ? 'Book This Ride'
+                                ? 'Continue to Booking'
                                 : 'Route Unavailable',
                             style: AppTextStyles.labelLarge,
                           ),

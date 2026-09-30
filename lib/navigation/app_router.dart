@@ -7,8 +7,10 @@ import '../features/driver/screens/driver_routes_screen.dart';
 import '../features/driver/screens/driver_settings_screen.dart';
 import '../features/driver/screens/driver_transactions_screen.dart';
 import '../features/driver/screens/driver_withdraw_screen.dart';
+import '../features/passenger/screens/passenger_booking_screen.dart';
 import '../features/passenger/screens/passenger_home_screen.dart';
 import '../features/passenger/screens/passenger_map_screen.dart';
+import '../models/passenger_route.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/driver_dashboard_repository.dart';
 import '../repositories/driver_route_repository.dart';
@@ -60,11 +62,11 @@ class AppRouter {
   Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     return MaterialPageRoute<void>(
       settings: settings,
-      builder: (context) => _buildScreen(settings.name),
+      builder: (context) => _buildScreen(settings.name, settings.arguments),
     );
   }
 
-  Widget _buildScreen(String? routeName) {
+  Widget _buildScreen(String? routeName, [Object? arguments]) {
     return switch (routeName) {
       // -----------------------------------------------------------------------
       // Auth
@@ -86,10 +88,11 @@ class AppRouter {
         icon: Icons.account_balance_wallet_rounded,
         description: 'View your wallet, top up, and manage payments.',
       ),
-      AppRoutes.passengerBookRide => const PlaceholderScreen(
-        title: 'Book Ride',
-        icon: Icons.directions_car_rounded,
-        description: 'Book a taxi ride to your destination.',
+      AppRoutes.passengerBookRide => PassengerBookingScreen(
+        route: arguments is PassengerRoute ? arguments : null,
+        authRepository: authRepository,
+        tripRepository: _effectiveTripRepository,
+        passengerRouteRepository: _effectivePassengerRouteRepository,
       ),
       AppRoutes.passengerRecentTrips => const PlaceholderScreen(
         title: 'Recent Trips',

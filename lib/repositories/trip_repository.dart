@@ -17,4 +17,19 @@ class TripRepository {
   Future<List<Trip>> getRecentTrips({int limit = 5}) async {
     return _tripService.getRecentTrips(limit: limit);
   }
+
+  /// Books a new ride and records it in the trip history.
+  Future<Trip> bookRide({
+    required String fromLocation,
+    required String toLocation,
+    required double fare,
+    String? routeCode,
+  }) async {
+    return _tripService.bookRide(
+      fromLocation: fromLocation,
+      toLocation: toLocation,
+      fare: fare,
+      routeCode: routeCode,
+    );
+  }
 }

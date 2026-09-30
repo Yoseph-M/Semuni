@@ -7,22 +7,30 @@ import '../../models/trip.dart';
 abstract interface class TripService {
   /// Fetches the recent trips taken by the passenger.
   Future<List<Trip>> getRecentTrips({int limit = 5});
+
+  /// Books a new ride and stores it in recent trips.
+  Future<Trip> bookRide({
+    required String fromLocation,
+    required String toLocation,
+    required double fare,
+    String? routeCode,
+  });
 }
 
 /// Mock implementation of [TripService].
 ///
 /// Provides realistic Ethiopian taxi trip records for frontend demonstration.
 class MockTripService implements TripService {
+  MockTripService({this.simulatedDelay = const Duration(milliseconds: 400)});
+
   /// Simulated latency to replicate real-world API behavior.
-  static const Duration _simulatedDelay = Duration(milliseconds: 400);
+  final Duration simulatedDelay;
 
-  @override
-  Future<List<Trip>> getRecentTrips({int limit = 5}) async {
-    await Future<void>.delayed(_simulatedDelay);
+  late final List<Trip> _trips = _generateInitialTrips();
 
+  static List<Trip> _generateInitialTrips() {
     final now = DateTime.now();
-
-    final List<Trip> trips = [
+    return [
       Trip(
         id: 'trip_001',
         fromLocation: 'Bole',
@@ -60,7 +68,39 @@ class MockTripService implements TripService {
         status: TripStatus.completed,
       ),
     ];
+  }
 
-    return trips.take(limit).toList();
+  @override
+  Future<List<Trip>> getRecentTrips({int limit = 5}) async {
+    if (simulatedDelay > Duration.zero) {
+      await Future<void>.delayed(simulatedDelay);
+    }
+    return _trips.take(limit).toList();
+  }
+
+  @override
+  Future<Trip> bookRide({
+    required String fromLocation,
+    required String toLocation,
+    required double fare,
+    String? routeCode,
+  }) async {
+    if (simulatedDelay > Duration.zero) {
+      await Future<void>.delayed(simulatedDelay);
+    }
+
+    final newTrip = Trip(
+      id: 'TRP-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+      fromLocation: fromLocation,
+      toLocation: toLocation,
+      amountPaid: fare,
+      completedAt: DateTime.now(),
+      driverName: 'Abebe T.',
+      status: TripStatus.requested,
+      routeCode: routeCode,
+    );
+
+    _trips.insert(0, newTrip);
+    return newTrip;
   }
 }

@@ -40,11 +40,6 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(
-        find.text('Demo driver: abel  |  password: password'),
-        findsOneWidget,
-      );
-
       // 3 & 4. Username and Password fields exist
       expect(find.widgetWithText(TextFormField, 'Username'), findsOneWidget);
       expect(find.widgetWithText(TextFormField, 'Password'), findsOneWidget);

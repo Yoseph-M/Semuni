@@ -58,7 +58,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final driver = widget.authRepository.currentDriver;
-    final driverName = driver?.firstName ?? 'Abel';
+    final driverName = driver?.firstName ?? 'Driver';
     final balance = driver?.accountBalance ?? 0.0;
 
     return Scaffold(

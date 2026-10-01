@@ -5,6 +5,7 @@ import { Route } from './entities/route.entity';
 import { CreateRouteDto, UpdateRouteDto } from './dto/route.dto';
 import { DomainException } from '../common/domain.exception';
 import { ErrorCode } from '../common/error-codes';
+import { RouteStatus } from '../common/enums';
 
 @Injectable()
 export class RoutesService {
@@ -84,7 +85,7 @@ export class RoutesService {
         ErrorCode.ROUTE_NOT_FOUND,
       );
     }
-    if (options?.requireActive && route.status !== 'ACTIVE') {
+    if (options?.requireActive && route.status !== RouteStatus.ACTIVE) {
       throw new DomainException(
         'Route is not active',
         HttpStatus.BAD_REQUEST,

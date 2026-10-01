@@ -9,6 +9,7 @@ import { DriversModule } from '../drivers/drivers.module';
 import { PassengersModule } from '../passengers/passengers.module';
 import { UsersModule } from '../users/users.module';
 import { FaresModule } from '../fares/fares.module';
+import { VehiclesModule } from '../vehicles/vehicles.module';
 
 @Module({
   imports: [
@@ -18,6 +19,8 @@ import { FaresModule } from '../fares/fares.module';
     UsersModule,
     // TripsService recalculates the official fare rather than trusting the client.
     FaresModule,
+    // ...and verifies the vehicle belongs to the operating driver.
+    VehiclesModule,
   ],
   providers: [TripsService],
   controllers: [TripsController],

@@ -116,12 +116,33 @@ export class AuthService {
    */
   async refreshTokens(refreshToken: string) {
     const rotated = await this.refreshTokensService.rotate(refreshToken);
-    const accessToken = await this.signAccessToken(rotated.userId, rotated.role);
+
+    // Rotation is not enough on its own: a refresh token issued before a
+    // suspension/status change must not mint fresh access tokens. Checked after
+    // rotation (so the presented token is consumed either way) and the whole
+    // session chain is revoked when the account is no longer ACTIVE.
+    const user = await this.usersService.findById(rotated.userId);
+    if (!user) {
+      await this.refreshTokensService.revokeAllForUser(rotated.userId);
+      throw new DomainException(
+        'Invalid refresh token',
+        HttpStatus.UNAUTHORIZED,
+        ErrorCode.AUTH_REFRESH_TOKEN_INVALID,
+      );
+    }
+    if (user.status !== UserStatus.ACTIVE) {
+      await this.refreshTokensService.revokeAllForUser(user.id);
+      const { code, message } = nonActiveStatusError(user.status);
+      throw new DomainException(message, HttpStatus.FORBIDDEN, code);
+    }
+
+    // Role is read from the stored user, not from the old token payload.
+    const accessToken = await this.signAccessToken(user.id, user.role);
 
     return {
       accessToken,
       refreshToken: rotated.refreshToken,
-      user: { id: rotated.userId, role: rotated.role },
+      user: { id: user.id, role: user.role },
     };
   }
 

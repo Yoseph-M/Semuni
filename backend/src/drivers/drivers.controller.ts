@@ -7,6 +7,7 @@ import {
   UseGuards,
   HttpStatus,
   HttpCode,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -71,6 +72,10 @@ export class DriversController {
   @Roles(UserRole.DRIVER)
   @ApiOperation({ summary: 'Get driver earnings summary (today + total)' })
   async getEarnings(@CurrentUser() user: User) {
+    // Earnings are an operational driver surface: a PENDING or SUSPENDED driver
+    // may view the profile (GET /drivers/me) but not financial data.
+    await this.driversService.assertOperationalDriver(user.id);
+
     const wallet = await this.walletsService.getWalletByUserId(user.id);
     const trips = await this.tripsService.getDriverTrips(user.id);
 
@@ -111,6 +116,8 @@ export class DriversController {
   @Roles(UserRole.DRIVER)
   @ApiOperation({ summary: 'Get recent driver financial transactions' })
   async getTransactions(@CurrentUser() user: User) {
+    await this.driversService.assertOperationalDriver(user.id);
+
     const entries = await this.walletsService.getWalletTransactions(user.id, 30);
     const trips = await this.tripsService.getDriverTrips(user.id);
     const tripByRef = new Map<string, any>();
@@ -192,7 +199,7 @@ export class DriversController {
   @Roles(UserRole.ADMIN)
   @ApiParam({ name: 'id', description: 'Driver ID to approve' })
   @ApiOperation({ summary: 'Approve a pending driver (Admin only)' })
-  async approveDriver(@Param('id') id: string) {
+  async approveDriver(@Param('id', ParseUUIDPipe) id: string) {
     const driver = await this.driversService.approve(id);
     return {
       data: { id: driver.id, status: driver.status },
@@ -204,7 +211,7 @@ export class DriversController {
   @Roles(UserRole.ADMIN)
   @ApiParam({ name: 'id', description: 'Driver ID to suspend' })
   @ApiOperation({ summary: 'Suspend an active driver (Admin only)' })
-  async suspendDriver(@Param('id') id: string) {
+  async suspendDriver(@Param('id', ParseUUIDPipe) id: string) {
     const driver = await this.driversService.suspend(id);
     return {
       data: { id: driver.id, status: driver.status },

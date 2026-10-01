@@ -84,6 +84,13 @@ export class RoutesService {
         ErrorCode.ROUTE_NOT_FOUND,
       );
     }
+    if (options?.requireActive && route.status !== 'ACTIVE') {
+      throw new DomainException(
+        'Route is not active',
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.ROUTE_INACTIVE,
+      );
+    }
     return route;
   }
 

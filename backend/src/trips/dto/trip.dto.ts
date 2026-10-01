@@ -4,7 +4,8 @@ import {
   IsUUID,
   IsOptional,
   IsEnum,
-  IsNumber,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { VehicleType } from '../../common/enums';
@@ -74,6 +75,7 @@ export class CreateTripDto {
     required: false,
   })
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   fareAmount?: number;
 }

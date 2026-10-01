@@ -10,16 +10,21 @@ import {
   WithdrawalDestinationType,
   PaymentProvider,
   Currency,
+  UserRole,
+  DriverStatus,
 } from '../common/enums';
 import { RequestWithdrawalDto } from './dto/withdrawal.dto';
 import { DomainException } from '../common/domain.exception';
 import { ErrorCode } from '../common/error-codes';
+import { User } from '../users/entities/user.entity';
 
 describe('WithdrawalsService', () => {
   let service: WithdrawalsService;
   let withdrawalRepo: any;
   let walletsService: any;
   let dataSource: any;
+  let userRepoFindOne: jest.Mock;
+  let driverRepoFindOne: jest.Mock;
 
   beforeEach(async () => {
     withdrawalRepo = {
@@ -31,7 +36,26 @@ describe('WithdrawalsService', () => {
       debitForWithdrawal: jest.fn(),
     };
 
+    // assertOperationalDriver resolves the user (role) and the driver profile
+    // (status) through the DataSource. The defaults describe an operational
+    // driver; individual tests override them to exercise the policy.
+    userRepoFindOne = jest
+      .fn()
+      .mockResolvedValue({ id: 'driver-u-1', role: UserRole.DRIVER });
+    driverRepoFindOne = jest.fn().mockResolvedValue({
+      id: 'driver-1',
+      userId: 'driver-u-1',
+      status: DriverStatus.ACTIVE,
+    });
+
     dataSource = {
+      getRepository: jest
+        .fn()
+        .mockImplementation((entity: unknown) =>
+          entity === User
+            ? { findOne: userRepoFindOne }
+            : { findOne: driverRepoFindOne },
+        ),
       transaction: jest.fn().mockImplementation(async (cb) => {
         const manager: any = {
           findOne: jest.fn(),
@@ -73,6 +97,10 @@ describe('WithdrawalsService', () => {
         id: 'wd-1',
         status: WithdrawalStatus.SUCCESS,
         amount: 2000,
+        destinationType: baseDto.destinationType,
+        destination: baseDto.destination,
+        destinationAccount: baseDto.destinationAccount,
+        provider: PaymentProvider.MOCK,
       };
       withdrawalRepo.findOne.mockResolvedValue(existing);
 
@@ -99,6 +127,49 @@ describe('WithdrawalsService', () => {
       expect(result.status).toEqual(WithdrawalStatus.PROCESSING);
       expect(result.amount).toBe(2000);
       expect(result.userId).toBe('driver-u-1');
+    });
+
+    it('rejects a non-driver caller at the service level, beyond the role guard', async () => {
+      userRepoFindOne.mockResolvedValue({
+        id: 'passenger-u-1',
+        role: UserRole.PASSENGER,
+      });
+
+      await expect(
+        service.requestWithdrawal('passenger-u-1', baseDto),
+      ).rejects.toMatchObject({ code: ErrorCode.AUTH_FORBIDDEN });
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(walletsService.debitForWithdrawal).not.toHaveBeenCalled();
+    });
+
+    it('rejects a driver profile that is not ACTIVE', async () => {
+      driverRepoFindOne.mockResolvedValue({
+        id: 'driver-1',
+        userId: 'driver-u-1',
+        status: DriverStatus.PENDING,
+      });
+
+      await expect(
+        service.requestWithdrawal('driver-u-1', baseDto),
+      ).rejects.toMatchObject({ code: ErrorCode.DRIVER_NOT_ACTIVE });
+      expect(walletsService.debitForWithdrawal).not.toHaveBeenCalled();
+    });
+
+    it('rejects an idempotency key reused with a different amount', async () => {
+      withdrawalRepo.findOne.mockResolvedValue({
+        id: 'wd-1',
+        status: WithdrawalStatus.PROCESSING,
+        amount: 9999,
+        destinationType: baseDto.destinationType,
+        destination: baseDto.destination,
+        destinationAccount: baseDto.destinationAccount,
+        provider: PaymentProvider.MOCK,
+      });
+
+      await expect(
+        service.requestWithdrawal('driver-u-1', baseDto),
+      ).rejects.toMatchObject({ code: ErrorCode.IDEMPOTENCY_CONFLICT });
+      expect(dataSource.transaction).not.toHaveBeenCalled();
     });
 
     it('marks withdrawal FAILED and rethrows when debitForWithdrawal fails', async () => {

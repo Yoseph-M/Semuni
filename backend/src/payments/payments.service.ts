@@ -12,6 +12,7 @@ import {
   PaymentRecordStatus,
   PaymentStatus,
   PaymentProvider,
+  UserRole,
 } from '../common/enums';
 import { CustomLogger } from '../common/logger/custom.logger';
 
@@ -37,28 +38,63 @@ export class PaymentsService {
       idempotencyKey: dto.idempotencyKey,
     });
 
+    // Idempotency keys are scoped to the authenticated passenger. A global
+    // lookup would let one user's key collide with — or return — another user's
+    // payment, so the owner is part of the key's identity.
     const existingByIdem = await this.paymentRepository.findOne({
-      where: { idempotencyKey: dto.idempotencyKey },
+      where: {
+        passengerId: passengerUserId,
+        idempotencyKey: dto.idempotencyKey,
+      },
     });
     if (existingByIdem) {
+      // Same key, different payload is not a retry. Treating it as one would
+      // silently answer a question the client never asked (and, before this
+      // check, could pay a different trip under an already-used key).
+      if (existingByIdem.tripId !== dto.tripId) {
+        this.logger.warn(
+          'Idempotency key reused for a different trip',
+          PaymentsService.name,
+          {
+            paymentId: existingByIdem.id,
+            existingTripId: existingByIdem.tripId,
+            requestedTripId: dto.tripId,
+            idempotencyKey: dto.idempotencyKey,
+          },
+        );
+        throw new DomainException(
+          'This idempotency key was already used for a different trip',
+          HttpStatus.CONFLICT,
+          ErrorCode.IDEMPOTENCY_CONFLICT,
+        );
+      }
+
       this.logger.warn('Idempotent payment request received', PaymentsService.name, {
         paymentId: existingByIdem.id,
         status: existingByIdem.status,
         idempotencyKey: dto.idempotencyKey,
       });
-      if (
-        existingByIdem.status === PaymentRecordStatus.SUCCESS ||
-        existingByIdem.status === PaymentRecordStatus.PENDING
-      ) {
-        if (existingByIdem.status === PaymentRecordStatus.SUCCESS) {
-          return existingByIdem;
-        }
+
+      if (existingByIdem.status === PaymentRecordStatus.SUCCESS) {
+        // Same request ⇒ same result. No second charge.
+        return existingByIdem;
+      }
+      if (existingByIdem.status === PaymentRecordStatus.PENDING) {
         throw new DomainException(
           'Payment is being processed',
           HttpStatus.CONFLICT,
           ErrorCode.PAYMENT_ALREADY_PROCESSED,
         );
       }
+      // FAILED / REFUNDED are terminal for this key: a genuinely new attempt
+      // must use a new key rather than reusing a consumed one.
+      throw new DomainException(
+        `Payment was already ${existingByIdem.status.toLowerCase()}`,
+        HttpStatus.CONFLICT,
+        existingByIdem.status === PaymentRecordStatus.FAILED
+          ? ErrorCode.PAYMENT_FAILED
+          : ErrorCode.PAYMENT_ALREADY_PROCESSED,
+      );
     }
 
     const trip = await this.tripsService.findById(dto.tripId);
@@ -208,6 +244,30 @@ export class PaymentsService {
         ErrorCode.PAYMENT_NOT_FOUND,
       );
     }
+    return payment;
+  }
+
+  /**
+   * Loads a payment only for a caller entitled to see it: the paying passenger,
+   * the driver who was paid, or an ADMIN (explicit privileged branch). Anyone
+   * else gets 403 PAYMENT_NOT_OWNED — knowing a UUID is not authorization.
+   */
+  async findByIdForUser(
+    paymentId: string,
+    user: { id: string; role: UserRole },
+  ): Promise<Payment> {
+    const payment = await this.findById(paymentId);
+
+    const isParticipant =
+      payment.passengerId === user.id || payment.driverId === user.id;
+    if (!isParticipant && user.role !== UserRole.ADMIN) {
+      throw new DomainException(
+        'Payment does not belong to this user',
+        HttpStatus.FORBIDDEN,
+        ErrorCode.PAYMENT_NOT_OWNED,
+      );
+    }
+
     return payment;
   }
 

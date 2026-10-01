@@ -37,6 +37,8 @@ export enum ErrorCode {
   PAYMENT_ALREADY_PROCESSED = 'PAYMENT_ALREADY_PROCESSED',
   PAYMENT_FAILED = 'PAYMENT_FAILED',
   PAYMENT_NOT_FOUND = 'PAYMENT_NOT_FOUND',
+  /** The payment exists but belongs to a different passenger/driver. */
+  PAYMENT_NOT_OWNED = 'PAYMENT_NOT_OWNED',
 
   // Fare / Tariff
   TARIFF_NOT_FOUND = 'TARIFF_NOT_FOUND',
@@ -61,6 +63,12 @@ export enum ErrorCode {
 
   // Vehicle
   VEHICLE_NOT_FOUND = 'VEHICLE_NOT_FOUND',
+  /** The vehicle exists but is not operational (INACTIVE / MAINTENANCE). */
+  VEHICLE_NOT_ACTIVE = 'VEHICLE_NOT_ACTIVE',
+  /** The vehicle is registered to a different driver than the one on the trip. */
+  VEHICLE_NOT_OWNED = 'VEHICLE_NOT_OWNED',
+  /** The vehicle type does not match the type the trip/tariff was quoted for. */
+  VEHICLE_TYPE_MISMATCH = 'VEHICLE_TYPE_MISMATCH',
 
   // General
   VALIDATION_ERROR = 'VALIDATION_ERROR',

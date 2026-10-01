@@ -5,9 +5,10 @@ import { Trip } from './entities/trip.entity';
 import { CreateTripDto } from './dto/trip.dto';
 import { DomainException } from '../common/domain.exception';
 import { ErrorCode } from '../common/error-codes';
-import { TripStatus, PaymentStatus, Currency, DriverStatus } from '../common/enums';
+import { TripStatus, PaymentStatus, Currency, DriverStatus, UserRole } from '../common/enums';
 import { DriversService } from '../drivers/drivers.service';
 import { FaresService } from '../fares/fares.service';
+import { VehiclesService } from '../vehicles/vehicles.service';
 
 @Injectable()
 export class TripsService {
@@ -16,6 +17,7 @@ export class TripsService {
     private readonly tripRepository: Repository<Trip>,
     private readonly driversService: DriversService,
     private readonly faresService: FaresService,
+    private readonly vehiclesService: VehiclesService,
   ) {}
 
   async createTrip(passengerUserId: string, dto: CreateTripDto): Promise<Trip> {
@@ -28,6 +30,17 @@ export class TripsService {
       );
     }
 
+    // A trip may only use a vehicle that belongs to the driver operating it and
+    // that is fit to drive. Checked before the fare quote so a mismatched
+    // vehicle is rejected without needing any tariff data.
+    const vehicle = dto.vehicleId
+      ? await this.vehiclesService.assertUsableByDriver(
+          dto.vehicleId,
+          driver.userId,
+          dto.vehicleType,
+        )
+      : undefined;
+
     // The server — never the client — decides the fare. It is recalculated from
     // the active tariff here and the trip stores this authoritative quote, so a
     // tampered or stale client value can never be paid. Route and tariff
@@ -35,7 +48,9 @@ export class TripsService {
     const quote = await this.faresService.calculateFare({
       origin: dto.origin,
       destination: dto.destination,
-      vehicleType: dto.vehicleType,
+      // When the client does not state a vehicle type, the quoted one is the
+      // type of the vehicle actually operating the trip.
+      vehicleType: dto.vehicleType ?? vehicle?.vehicleType,
     });
 
     // A client-quoted fare is tolerated only if it agrees. Disagreement means a
@@ -51,7 +66,7 @@ export class TripsService {
     const trip = this.tripRepository.create({
       passengerId: passengerUserId,
       driverId: dto.driverId,
-      vehicleId: dto.vehicleId,
+      vehicleId: vehicle?.id ?? dto.vehicleId,
       routeId: quote.routeId,
       origin: dto.origin,
       destination: dto.destination,
@@ -77,6 +92,37 @@ export class TripsService {
         ErrorCode.TRIP_NOT_FOUND,
       );
     }
+    return trip;
+  }
+
+  /**
+   * Loads a trip only for a caller entitled to see it.
+   *
+   * Authorization policy, applied consistently across the API:
+   *   - the owning passenger and the assigned driver may read the trip
+   *   - ADMIN has an explicit privileged branch (the /admin namespace comes later)
+   *   - any other authenticated user gets 403 TRIP_NOT_OWNED
+   *   - an unknown id gets 404 — a malformed or foreign UUID is never useful
+   *
+   * Authentication is not authorization: a valid token must not grant access to
+   * an arbitrary trip.
+   */
+  async findByIdForUser(
+    tripId: string,
+    user: { id: string; role: UserRole },
+  ): Promise<Trip> {
+    const trip = await this.findById(tripId);
+
+    const isParticipant =
+      trip.passengerId === user.id || trip.driverId === user.id;
+    if (!isParticipant && user.role !== UserRole.ADMIN) {
+      throw new DomainException(
+        'Trip does not belong to this user',
+        HttpStatus.FORBIDDEN,
+        ErrorCode.TRIP_NOT_OWNED,
+      );
+    }
+
     return trip;
   }
 

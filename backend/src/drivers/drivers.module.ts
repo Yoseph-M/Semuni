@@ -18,6 +18,7 @@ import { VehiclesService } from '../vehicles/vehicles.service';
 import { WithdrawalsService } from '../withdrawals/withdrawals.service';
 import { PassengersService } from '../passengers/passengers.service';
 import { FaresModule } from '../fares/fares.module';
+import { VehiclesModule } from '../vehicles/vehicles.module';
 
 @Module({
   imports: [
@@ -31,8 +32,10 @@ import { FaresModule } from '../fares/fares.module';
       Passenger,
       LedgerEntry,
     ]),
-    // TripsService (re-provided below) recalculates fares server-side.
+    // TripsService (re-provided below) recalculates fares server-side and
+    // checks vehicle ownership.
     FaresModule,
+    VehiclesModule,
   ],
   providers: [
     DriversService,

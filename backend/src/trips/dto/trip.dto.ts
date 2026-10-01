@@ -4,7 +4,8 @@ import {
   IsUUID,
   IsOptional,
   IsEnum,
-  IsNumber,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { VehicleType } from '../../common/enums';
@@ -20,10 +21,17 @@ export class CreateTripDto {
   @IsUUID()
   vehicleId?: string;
 
-  @ApiProperty({ description: 'Route ID resolved from fare calculation (optional)' })
-  @IsOptional()
+  @ApiProperty({ description: 'Route UUID' })
   @IsUUID()
-  routeId?: string;
+  routeId: string;
+
+  @ApiProperty({ description: 'Origin RouteStop UUID' })
+  @IsUUID()
+  originStopId: string;
+
+  @ApiProperty({ description: 'Destination RouteStop UUID' })
+  @IsUUID()
+  destinationStopId: string;
 
   @ApiProperty({ description: 'Origin location / stop name' })
   @IsString()
@@ -67,6 +75,7 @@ export class CreateTripDto {
     required: false,
   })
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   fareAmount?: number;
 }

@@ -2,151 +2,133 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { FaresService } from './fares.service';
 import { TariffsService } from '../tariffs/tariffs.service';
 import { RoutesService } from '../routes/routes.service';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { Route } from '../routes/entities/route.entity';
-import { Tariff } from '../tariffs/entities/tariff.entity';
-import { TariffRule } from '../tariffs/entities/tariff-rule.entity';
 import { DomainException } from '../common/domain.exception';
 import { ErrorCode } from '../common/error-codes';
-import { VehicleType } from '../common/enums';
+import { VehicleType, RouteStatus } from '../common/enums';
 
 describe('FaresService', () => {
   let service: FaresService;
-  let tariffsService: TariffsService;
+  let tariffsService: { getActiveTariff: jest.Mock };
+  let routesService: { findById: jest.Mock };
 
-  const mockTariffRepository = {};
-  const mockTariffRuleRepository = {};
-  const mockRouteRepository = {};
+  const route = {
+    id: '11111111-1111-4111-8111-111111111111',
+    name: 'Bole – Piazza',
+    status: RouteStatus.ACTIVE,
+    stops: [
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'Bole',
+        sequence: 1,
+      },
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        name: 'Meskel Square',
+        sequence: 2,
+      },
+      {
+        id: '44444444-4444-4444-8444-444444444444',
+        name: 'Piazza',
+        sequence: 3,
+      },
+    ],
+  };
+
+  const tariff = {
+    id: '55555555-5555-4555-8555-555555555555',
+    name: 'Standard Tariff',
+    currency: 'ETB',
+    rules: [
+      {
+        id: '66666666-6666-4666-8666-666666666666',
+        route: { id: route.id },
+        vehicleType: VehicleType.MINIBUS,
+        startStopSequence: 1,
+        endStopSequence: 3,
+        basePrice: 8500,
+      },
+    ],
+  };
 
   beforeEach(async () => {
+    routesService = { findById: jest.fn().mockResolvedValue(route) };
+    tariffsService = { getActiveTariff: jest.fn().mockResolvedValue(tariff) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FaresService,
-        TariffsService,
-        RoutesService,
-        {
-          provide: getRepositoryToken(Route),
-          useValue: mockRouteRepository,
-        },
-        {
-          provide: getRepositoryToken(Tariff),
-          useValue: mockTariffRepository,
-        },
-        {
-          provide: getRepositoryToken(TariffRule),
-          useValue: mockTariffRuleRepository,
-        },
+        { provide: TariffsService, useValue: tariffsService },
+        { provide: RoutesService, useValue: routesService },
       ],
     }).compile();
 
     service = module.get<FaresService>(FaresService);
-    tariffsService = module.get<TariffsService>(TariffsService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('calculates a fare only from route and ordered stop IDs', async () => {
+    await expect(
+      service.calculateFare({
+        routeId: route.id,
+        originStopId: route.stops[0].id,
+        destinationStopId: route.stops[2].id,
+        vehicleType: VehicleType.MINIBUS,
+      }),
+    ).resolves.toMatchObject({
+      fare: 8500,
+      routeId: route.id,
+      originStopId: route.stops[0].id,
+      destinationStopId: route.stops[2].id,
+      tariffRuleId: tariff.rules[0].id,
+    });
   });
 
-  describe('calculateFare', () => {
-    const mockRoute = {
-      id: 'route-1',
-      name: 'Bole to Piazza',
-      origin: 'Bole',
-      destination: 'Piazza',
-      code: 'BP001',
-      status: 'ACTIVE',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      stops: [],
-    };
+  it('rejects a stop that does not belong to the route', async () => {
+    await expect(
+      service.calculateFare({
+        routeId: route.id,
+        originStopId: '77777777-7777-4777-8777-777777777777',
+        destinationStopId: route.stops[2].id,
+      }),
+    ).rejects.toHaveProperty('response.code', ErrorCode.STOP_NOT_FOUND);
+  });
 
-    const mockTariffRule = {
-      id: 'rule-1',
-      tariffId: 'tariff-1',
-      routeId: 'route-1',
-      // TariffsService loads `rules.route`; FaresService matches on it.
-      route: mockRoute,
-      basePrice: 8500,
-      vehicleType: VehicleType.MINIBUS,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+  it('rejects reverse-direction travel', async () => {
+    await expect(
+      service.calculateFare({
+        routeId: route.id,
+        originStopId: route.stops[2].id,
+        destinationStopId: route.stops[0].id,
+      }),
+    ).rejects.toHaveProperty('response.code', ErrorCode.STOP_ORDER_INVALID);
+  });
 
-    const mockTariff = {
-      id: 'tariff-1',
-      name: 'Standard Tariff',
-      validFrom: new Date('2023-01-01'),
-      validTo: null,
-      currency: 'ETB',
-      rules: [mockTariffRule],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    beforeEach(() => {
-      jest.spyOn(service as any, 'findRouteByOriginDestination').mockResolvedValue(mockRoute);
-      jest.spyOn(tariffsService, 'getActiveTariff').mockResolvedValue(mockTariff as any);
+  it('rejects an inactive route', async () => {
+    routesService.findById.mockResolvedValue({
+      ...route,
+      status: RouteStatus.INACTIVE,
     });
 
-    it('should calculate fare for a given origin, destination and vehicle type', async () => {
-      const dto = {
-        origin: 'Bole',
-        destination: 'Piazza',
-        vehicleType: VehicleType.MINIBUS,
-      };
+    await expect(
+      service.calculateFare({
+        routeId: route.id,
+        originStopId: route.stops[0].id,
+        destinationStopId: route.stops[2].id,
+      }),
+    ).rejects.toHaveProperty('response.code', ErrorCode.ROUTE_INACTIVE);
+  });
 
-      const result = await service.calculateFare(dto);
-      expect(result).toEqual({
-        fare: 8500,
-        currency: 'ETB',
-        routeId: 'route-1',
-        routeName: 'Bole to Piazza',
-        tariffId: 'tariff-1',
-        tariffRuleId: 'rule-1',
-        tariffVersion: 'Standard Tariff',
-      });
+  it('rejects a tariff rule for a different route', async () => {
+    tariffsService.getActiveTariff.mockResolvedValue({
+      ...tariff,
+      rules: [{ ...tariff.rules[0], route: { id: '88888888-8888-4888-8888-888888888888' } }],
     });
 
-    it('should throw error if route not found', async () => {
-      jest.spyOn(service as any, 'findRouteByOriginDestination').mockResolvedValue(null);
-      const dto = {
-        origin: 'Unknown',
-        destination: 'Place',
-        vehicleType: VehicleType.MINIBUS,
-      };
-      await expect(service.calculateFare(dto)).rejects.toThrow(DomainException);
-      await expect(service.calculateFare(dto)).rejects.toHaveProperty(
-        'response.code', ErrorCode.ROUTE_NOT_FOUND,
-      );
-    });
-
-    it('should throw error if active tariff not found', async () => {
-      jest
-        .spyOn(tariffsService, 'getActiveTariff')
-        .mockResolvedValue(null as unknown as Tariff);
-      const dto = {
-        origin: 'Bole',
-        destination: 'Piazza',
-        vehicleType: VehicleType.MINIBUS,
-      };
-      await expect(service.calculateFare(dto)).rejects.toThrow(DomainException);
-      await expect(service.calculateFare(dto)).rejects.toHaveProperty(
-        'response.code', ErrorCode.TARIFF_NOT_FOUND,
-      );
-    });
-
-    it('should throw error if tariff rule not found for route and vehicle type', async () => {
-      const tariffWithNoMatchingRule = { ...mockTariff, rules: [] };
-      jest.spyOn(tariffsService, 'getActiveTariff').mockResolvedValue(tariffWithNoMatchingRule as any);
-      const dto = {
-        origin: 'Bole',
-        destination: 'Piazza',
-        vehicleType: VehicleType.MINIBUS,
-      };
-      await expect(service.calculateFare(dto)).rejects.toThrow(DomainException);
-      await expect(service.calculateFare(dto)).rejects.toHaveProperty(
-        'response.code', ErrorCode.TARIFF_RULE_NOT_FOUND,
-      );
-    });
+    await expect(
+      service.calculateFare({
+        routeId: route.id,
+        originStopId: route.stops[0].id,
+        destinationStopId: route.stops[2].id,
+      }),
+    ).rejects.toHaveProperty('response.code', ErrorCode.TARIFF_RULE_NOT_FOUND);
   });
 });

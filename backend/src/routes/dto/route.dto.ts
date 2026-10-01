@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsArray, ValidateNested, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsOptional, IsArray, ValidateNested, IsInt, IsNumber, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { RouteStatus } from '../../common/enums';
@@ -10,17 +10,22 @@ export class CreateRouteStopDto {
   name: string;
 
   @ApiProperty()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   sequence: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsNumber()
+  @Min(-90)
+  @Max(90)
   latitude?: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsNumber()
+  @Min(-180)
+  @Max(180)
   longitude?: number;
 }
 
@@ -45,8 +50,7 @@ export class CreateRouteDto {
   @IsNotEmpty()
   code: string;
 
-  @ApiProperty({ type: [CreateRouteStopDto], required: false })
-  @IsOptional()
+  @ApiProperty({ type: [CreateRouteStopDto] })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateRouteStopDto)

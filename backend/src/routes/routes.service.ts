@@ -71,7 +71,7 @@ export class RoutesService {
     return this.routeRepository.find({ relations: ['stops'] });
   }
 
-  async findById(id: string): Promise<Route> {
+  async findById(id: string, options?: { requireActive?: boolean }): Promise<Route> {
     const route = await this.routeRepository.findOne({ 
       where: { id },
       relations: ['stops'],

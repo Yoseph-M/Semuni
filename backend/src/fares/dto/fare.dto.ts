@@ -3,15 +3,17 @@ import { ApiProperty } from '@nestjs/swagger';
 import { VehicleType } from '../../common/enums';
 
 export class CalculateFareDto {
-  @ApiProperty({ example: 'Bole', description: 'Origin location / stop name' })
-  @IsString()
-  @IsNotEmpty()
-  origin: string;
+  @ApiProperty({ description: 'Route UUID' })
+  @IsUUID()
+  routeId: string;
 
-  @ApiProperty({ example: 'Piazza', description: 'Destination location / stop name' })
-  @IsString()
-  @IsNotEmpty()
-  destination: string;
+  @ApiProperty({ description: 'Origin RouteStop UUID' })
+  @IsUUID()
+  originStopId: string;
+
+  @ApiProperty({ description: 'Destination RouteStop UUID' })
+  @IsUUID()
+  destinationStopId: string;
 
   @ApiProperty({ enum: VehicleType, default: VehicleType.MINIBUS, required: false })
   @IsOptional()

@@ -15,8 +15,14 @@ export class Trip extends BaseEntity {
   @Column({ nullable: true })
   vehicleId?: string;
 
-  @Column({ nullable: true })
-  routeId?: string;
+  @Column()
+  routeId: string;
+
+  @Column()
+  originStopId: string;
+
+  @Column()
+  destinationStopId: string;
 
   @Column()
   origin: string;

@@ -20,10 +20,17 @@ export class CreateTripDto {
   @IsUUID()
   vehicleId?: string;
 
-  @ApiProperty({ description: 'Route ID resolved from fare calculation (optional)' })
-  @IsOptional()
+  @ApiProperty({ description: 'Route UUID' })
   @IsUUID()
-  routeId?: string;
+  routeId: string;
+
+  @ApiProperty({ description: 'Origin RouteStop UUID' })
+  @IsUUID()
+  originStopId: string;
+
+  @ApiProperty({ description: 'Destination RouteStop UUID' })
+  @IsUUID()
+  destinationStopId: string;
 
   @ApiProperty({ description: 'Origin location / stop name' })
   @IsString()

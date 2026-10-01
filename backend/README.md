@@ -14,11 +14,11 @@ Key architectural highlights:
   - `Passengers` / `Drivers` / `Vehicles`: Core user and asset management.
   - `Routes` / `Tariffs` / `Fares`: Configuration and calculation of dynamic pricing based on distance/stops.
   - `Wallets` / `Ledger` / `Payments`: The financial core, using pessimistic locking and double-entry accounting to ensure zero data anomalies.
-  - `Withdrawals` / `Settlements`: Handles driver cash-outs. Settlements processing is automated via a nightly `@Cron` job that batches pending withdrawals.
+  - `Withdrawals` / `Settlements`: Handles driver cash-outs. Batch settlement is triggered explicitly by an admin via `POST /settlements/process` (no background timers: a process restart must never lose or mutate financial state).
   - `Trips`: Aggregates the journey details resulting from a successful payment.
   - `Notifications`: Stubs for sending Push and SMS notifications.
 
-- **Idempotency**: The `/payments` endpoint requires an `idempotencyKey` to prevent double charging on retries.
+- **Idempotency**: Payment, withdrawal and top-up endpoints require an `idempotencyKey` to prevent double charging on retries. Keys are scoped to their owner (`(ownerId, idempotencyKey)`), so one user's key can never resolve to another user's operation.
 - **Financial Integrity**: All wallet balance changes and ledger entries occur within strict PostgreSQL transactions. Minor units (e.g., santim) are used for all currency values to avoid floating-point errors.
 
 ## Getting Started
@@ -54,6 +54,42 @@ docker compose up -d postgres
 ```
 
 Do not point local development at a remote pooler unless `DB_USERNAME` and `DB_PASSWORD` are a real Postgres role and password. A JWT or service-role key is not a database password and will fail with `password authentication failed for user "postgres"`.
+
+### First run on a new machine (`JWT_ACCESS_SECRET` does not exist)
+
+`.env` is deliberately **not** committed — it holds credentials — so a fresh
+clone has no database or JWT configuration, and `npm run start` fails with:
+
+```
+TypeError: Configuration key "JWT_ACCESS_SECRET" does not exist
+    at ConfigService.getOrThrow (...\@nestjs\config\dist\config.service.js)
+    at InstanceWrapper.useFactory (...\src\auth\auth.module.ts)
+```
+
+That error means exactly one thing: the process found no `.env` in `backend/`
+(ConfigModule reads `envFilePath: ['.env']`, which is resolved relative to the
+**working directory**), or the file exists but lacks `JWT_ACCESS_SECRET` /
+`JWT_REFRESH_SECRET`.
+
+Fix it on the new machine:
+
+1. Create `backend/.env` **next to `package.json`** (note: the first line of
+   `.env.example` is literally `[TEMPLATE]` — it is a marker, not a key; delete
+   it when copying).
+2. Fill in at minimum:
+
+   | Key | Notes |
+   | --- | --- |
+   | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | a reachable PostgreSQL instance (local Docker or a Supabase pooler) |
+   | `JWT_ACCESS_SECRET` | random, ≥32 chars |
+   | `JWT_REFRESH_SECRET` | random, ≥32 chars, **different** from the access secret |
+   | `SEED_*_PASSWORD` | optional, only used by `npm run seed:dev` |
+
+   Generate secrets with `openssl rand -hex 32`, or on Windows with
+   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+3. Run `npm run migration:run` once, then `npm run start:prod` (or
+   `npm run start:dev`) **from `backend/`**, because the `.env` path is relative
+   to the working directory.
 
 ### Running the Application
 
@@ -123,8 +159,48 @@ Consequences worth knowing:
 * **Logout** — revokes the supplied refresh session, or all of the caller's sessions when none is supplied.
 
 Account status is re-checked on every request, so suspending a user takes effect immediately rather
-than when their access token expires. Only `ACTIVE` accounts may authenticate; `PENDING`, `SUSPENDED`
-and `INACTIVE` are refused with `AUTH_USER_PENDING` / `AUTH_USER_SUSPENDED` / `AUTH_USER_INACTIVE`.
+than when their access token expires, and a refresh token issued before a suspension cannot be
+exchanged for new tokens (the whole session chain is revoked instead). Only `ACTIVE` accounts may
+authenticate; `PENDING`, `SUSPENDED` and `INACTIVE` are refused with `AUTH_USER_PENDING` /
+`AUTH_USER_SUSPENDED` / `AUTH_USER_INACTIVE`.
+
+### Authorization policy
+
+Authentication proves *who* the caller is; it never proves they may touch a particular object. Every
+lookup therefore goes through an ownership-aware service method (`findByIdForUser` on trips and
+payments, scoped queries for history endpoints) rather than handing a raw `findById` to a controller.
+
+* **Trips** — the owning passenger and the assigned driver may read a trip; any other authenticated
+  user gets `403 TRIP_NOT_OWNED`. `ADMIN` has an explicit privileged branch.
+* **Payments** — only the paying passenger, the paid driver, or `ADMIN` may read a payment. Responses
+  omit provider internals (`providerReference`) and `idempotencyKey`.
+* **Withdrawals** — driver-only at the route (`@Roles(DRIVER)`) *and* in the service
+  (`WithdrawalsService.assertOperationalDriver`): a caller must be a `DRIVER` user with a driver
+  profile whose status is `ACTIVE`. A passenger can never initiate or list a withdrawal, and a second
+  driver can never see the first driver's history.
+* **Drivers** — `user.status = ACTIVE` (re-checked per request) **and** `driver.status = ACTIVE` are
+  both required for operational surfaces (`/drivers/me/earnings`, `/drivers/me/transactions`,
+  withdrawals, and being selected as a trip driver). The profile itself stays readable so a `PENDING`
+  driver's app can show the status.
+* **Vehicles** — a trip may only use an existing, `ACTIVE` vehicle that is assigned to the driver
+  operating the trip: `VEHICLE_NOT_FOUND` (404), `VEHICLE_NOT_ACTIVE` (400), `VEHICLE_NOT_OWNED`
+  (403), `VEHICLE_TYPE_MISMATCH` (400).
+* **IDs** — every `:id` route parameter is UUID-validated (`ParseUUIDPipe`), so a malformed id is
+  `400 VALIDATION_ERROR` instead of a database error.
+
+**Disclosure policy:** a resource that exists but belongs to someone else returns `403` with a
+`*_NOT_OWNED` code; a resource that does not exist returns `404`. Clients branch on `code`, never on
+`message`.
+
+### Idempotency ownership
+
+An idempotency key belongs to the user who created it, not to the whole database. Payment, withdrawal
+and top-up keys are stored and looked up as `(ownerId, idempotencyKey)` — enforced by unique database
+indexes — so one user's key can never return, block, or alias another user's operation.
+
+Replaying the *same* request returns the same stored operation. Reusing a key with a *different*
+payload (another trip, amount or destination) is refused with `409 IDEMPOTENCY_CONFLICT`; it is never
+silently treated as the first request, and it never moves money.
 
 ### Running Tests
 
@@ -133,10 +209,14 @@ npm run test        # unit tests
 npm run test:e2e    # integration tests (boots the real app against PostgreSQL)
 ```
 
-The unit suite covers idempotency checks and strict transactional bounds for
-financial operations. The e2e suite exercises the real routing/validation/
-persistence contract — including auth, refresh-token rotation and revocation —
-against the configured database, and cleans up after itself.
+The unit suite covers idempotency checks (including key ownership and payload
+conflicts) and strict transactional bounds for financial operations. The e2e
+suites boot the real app against the configured database and clean up after
+themselves: `auth.e2e-spec.ts` covers registration, login, rotation, reuse
+detection, logout and account status, while `authorization.e2e-spec.ts` covers
+object-level authorization on trips and payments, driver-only withdrawals, the
+driver operational-status policy, vehicle ownership, admin-only endpoints,
+idempotency conflicts and UUID validation.
 
 ### API Documentation
 
@@ -184,7 +264,9 @@ tariff, never accepted from the client.
 Step 6 runs as a single PostgreSQL transaction that validates ownership and balance,
 creates the payment, debits the passenger, credits the driver, writes both ledger
 entries and marks the trip PAID — all or nothing. Repeating it with the same
-`idempotencyKey` returns the original payment and never charges twice.
+`idempotencyKey` returns the original payment and never charges twice; the key is
+scoped to that passenger, and reusing it for a different trip is rejected with
+`IDEMPOTENCY_CONFLICT`.
 
 ```
 Passenger wallet --DEBIT 8500--> Trip payment --CREDIT 8500--> Driver wallet

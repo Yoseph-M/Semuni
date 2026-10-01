@@ -5,6 +5,7 @@ import {
   Body,
   UseGuards,
   Param,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -86,9 +87,17 @@ export class TripsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a specific trip by ID' })
-  async getTrip(@Param('id') id: string) {
-    const trip = await this.tripsService.findById(id);
+  @ApiOperation({
+    summary:
+      'Get a specific trip by ID. Passengers may read only their own trips, drivers only trips assigned to them; ADMIN has privileged access.',
+  })
+  async getTrip(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    // Object-level authorization lives in the service, so it applies however
+    // the trip is reached — not just through this route.
+    const trip = await this.tripsService.findByIdForUser(id, user);
     return { data: trip, meta: {} };
   }
 }

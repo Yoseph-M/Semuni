@@ -3,13 +3,19 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagg
 import { WithdrawalsService } from './withdrawals.service';
 import { RequestWithdrawalDto } from './dto/withdrawal.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { UserRole } from '../common/enums';
 
 @ApiTags('Withdrawals')
 @Controller('withdrawals')
 @ApiBearerAuth('access-token')
-@UseGuards(JwtAuthGuard)
+// Drivers only — and WithdrawalsService re-verifies the driver profile and its
+// ACTIVE status, because a role decorator alone is not an authorization policy.
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.DRIVER)
 export class WithdrawalsController {
   constructor(private readonly withdrawalsService: WithdrawalsService) {}
 

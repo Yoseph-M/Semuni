@@ -40,12 +40,25 @@ export class TopUpService {
 
   /** Step 1 — create the intent and register it with the provider. */
   async initiate(userId: string, dto: TopUpWalletDto): Promise<TopUpIntent> {
+    const provider = dto.provider ?? PaymentProvider.MOCK;
+
+    // Idempotency keys are scoped to the user who generated them: one user's key
+    // must never resolve to (or block) another user's top-up.
     const existing = await this.intentRepository.findOne({
-      where: { idempotencyKey: dto.idempotencyKey },
+      where: { userId, idempotencyKey: dto.idempotencyKey },
     });
     if (existing) {
-      // Same key means the same top-up: return the original rather than
-      // creating a second one.
+      // Same key with the same payload means the same top-up: return the
+      // original rather than creating a second one. A different amount/provider
+      // is a different request wearing the same key, which is a conflict.
+      if (existing.amountMinor !== dto.amount || existing.provider !== provider) {
+        throw new DomainException(
+          'This idempotency key was already used for a different top-up',
+          HttpStatus.CONFLICT,
+          ErrorCode.IDEMPOTENCY_CONFLICT,
+        );
+      }
+
       this.logger.log('Idempotent top-up initiation', TopUpService.name, {
         userId,
         intentId: existing.id,
@@ -54,7 +67,7 @@ export class TopUpService {
       return existing;
     }
 
-    const providerName = dto.provider ?? PaymentProvider.MOCK;
+    const providerName = provider;
     const gateway = this.providerRegistry.get(providerName);
 
     const intent = await this.intentRepository.save(

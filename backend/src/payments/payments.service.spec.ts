@@ -128,6 +128,7 @@ describe('PaymentsService', () => {
       const existingPayment = {
         id: 'pay-1',
         status: PaymentRecordStatus.PENDING,
+        tripId: 'trip-1',
       };
       paymentRepo.findOne.mockResolvedValue(existingPayment);
 
@@ -137,6 +138,34 @@ describe('PaymentsService', () => {
       await expect(service.processTripPayment('pass-user-1', dto)).rejects.toMatchObject(
         { code: ErrorCode.PAYMENT_ALREADY_PROCESSED },
       );
+    });
+
+    it('rejects a key reused for a different trip with IDEMPOTENCY_CONFLICT', async () => {
+      paymentRepo.findOne.mockResolvedValue({
+        id: 'pay-1',
+        status: PaymentRecordStatus.SUCCESS,
+        tripId: 'some-other-trip',
+      });
+
+      await expect(
+        service.processTripPayment('pass-user-1', dto),
+      ).rejects.toMatchObject({ code: ErrorCode.IDEMPOTENCY_CONFLICT });
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('scopes the idempotency lookup to the authenticated passenger', async () => {
+      paymentRepo.findOne.mockResolvedValue(null);
+      tripsService.findById.mockResolvedValue(makeTrip());
+
+      await service.processTripPayment('pass-user-1', dto);
+
+      // A global key lookup would let one user's request collide with another's.
+      expect(paymentRepo.findOne).toHaveBeenCalledWith({
+        where: {
+          passengerId: 'pass-user-1',
+          idempotencyKey: dto.idempotencyKey,
+        },
+      });
     });
 
     it('should throw TRIP_NOT_OWNED when passenger does not own the trip', async () => {

@@ -8,6 +8,11 @@ import {
 } from '../../common/enums';
 
 @Entity('withdrawals')
+// Idempotency keys belong to the driver who sent them, so uniqueness is scoped
+// to the owner rather than global.
+@Index('UQ_withdrawals_user_idempotency', ['userId', 'idempotencyKey'], {
+  unique: true,
+})
 export class Withdrawal extends BaseEntity {
   @Column()
   @Index()
@@ -38,7 +43,7 @@ export class Withdrawal extends BaseEntity {
   @Column({ type: 'enum', enum: PaymentProvider, default: PaymentProvider.MOCK })
   provider: PaymentProvider;
 
-  @Column({ nullable: true, unique: true })
+  @Column({ nullable: true })
   idempotencyKey?: string;
 
   @Column({ nullable: true })

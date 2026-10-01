@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { RoutesService } from './routes.service';
 import { CreateRouteDto, UpdateRouteDto } from './dto/route.dto';
@@ -23,7 +32,7 @@ export class RoutesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a specific route by ID' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const route = await this.routesService.findById(id);
     return { data: route, meta: {} };
   }
@@ -39,7 +48,7 @@ export class RoutesController {
   @Patch(':id')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update route status (Admin only)' })
-  async update(@Param('id') id: string, @Body() dto: UpdateRouteDto) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateRouteDto) {
     const route = await this.routesService.update(id, dto);
     return { data: route, meta: { message: 'Route updated successfully' } };
   }

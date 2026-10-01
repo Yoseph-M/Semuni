@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsArray, ValidateNested, IsDateString, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsOptional, IsArray, ValidateNested, IsDateString, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { Currency, VehicleType } from '../../common/enums';
@@ -16,16 +16,19 @@ export class CreateTariffRuleDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   startStopSequence?: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   endStopSequence?: number;
 
   @ApiProperty({ description: 'Base price in minor units (e.g., 8500 santim for 85.00 ETB)' })
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   basePrice: number;
 }
 

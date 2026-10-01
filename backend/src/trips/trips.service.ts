@@ -46,8 +46,9 @@ export class TripsService {
     // tampered or stale client value can never be paid. Route and tariff
     // identifiers are taken from the quote for the same reason.
     const quote = await this.faresService.calculateFare({
-      origin: dto.origin,
-      destination: dto.destination,
+      routeId: dto.routeId,
+      originStopId: dto.originStopId,
+      destinationStopId: dto.destinationStopId,
       // When the client does not state a vehicle type, the quoted one is the
       // type of the vehicle actually operating the trip.
       vehicleType: dto.vehicleType ?? vehicle?.vehicleType,
@@ -68,8 +69,12 @@ export class TripsService {
       driverId: dto.driverId,
       vehicleId: vehicle?.id ?? dto.vehicleId,
       routeId: quote.routeId,
-      origin: dto.origin,
-      destination: dto.destination,
+      originStopId: quote.originStopId,
+      destinationStopId: quote.destinationStopId,
+      // Store server-derived stop names as immutable trip snapshots. Client
+      // text is descriptive only and is never the source of route identity.
+      origin: quote.originStopName,
+      destination: quote.destinationStopName,
       fareAmount: quote.fare,
       currency: quote.currency as Currency,
       tariffId: quote.tariffId,

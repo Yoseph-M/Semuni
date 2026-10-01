@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { User } from '../../users/entities/user.entity';
 import {
@@ -19,6 +19,10 @@ import {
  * the SUCCESS transition, which happens in TopUpService.
  */
 @Entity('top_up_intents')
+// Top-up keys are scoped to their owner; one user's key is invisible to others.
+@Index('UQ_top_up_intents_user_idempotency', ['userId', 'idempotencyKey'], {
+  unique: true,
+})
 export class TopUpIntent extends BaseEntity {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'userId' })
@@ -49,7 +53,7 @@ export class TopUpIntent extends BaseEntity {
   providerReference?: string;
 
   /** Client-supplied key; makes initiating the same top-up twice safe. */
-  @Column({ unique: true })
+  @Column()
   idempotencyKey: string;
 
   @Column({ type: 'timestamp with time zone', nullable: true })

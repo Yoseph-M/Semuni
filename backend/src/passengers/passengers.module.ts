@@ -12,12 +12,15 @@ import { LedgerService } from '../ledger/ledger.service';
 import { TripsService } from '../trips/trips.service';
 import { DriversService } from '../drivers/drivers.service';
 import { FaresModule } from '../fares/fares.module';
+import { VehiclesModule } from '../vehicles/vehicles.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Passenger, Trip, Driver, Wallet, LedgerEntry]),
-    // TripsService (re-provided below) recalculates fares server-side.
+    // TripsService (re-provided below) recalculates fares server-side and
+    // checks vehicle ownership.
     FaresModule,
+    VehiclesModule,
   ],
   providers: [
     PassengersService,

@@ -14,12 +14,15 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { Driver } from '../drivers/entities/driver.entity';
 import { CustomLogger } from '../common/logger/custom.logger';
 import { FaresModule } from '../fares/fares.module';
+import { VehiclesModule } from '../vehicles/vehicles.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment, Wallet, Trip, Driver, LedgerEntry]),
-    // TripsService (re-provided below) recalculates fares server-side.
+    // TripsService (re-provided below) recalculates fares server-side and
+    // checks vehicle ownership.
     FaresModule,
+    VehiclesModule,
   ],
   providers: [
     PaymentsService,

@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -91,7 +92,7 @@ export class WalletsController {
   })
   async confirmTopUp(
     @CurrentUser() user: User,
-    @Param('intentId') intentId: string,
+    @Param('intentId', ParseUUIDPipe) intentId: string,
   ) {
     const { intent, wallet } = await this.topUpService.confirm(
       user.id,

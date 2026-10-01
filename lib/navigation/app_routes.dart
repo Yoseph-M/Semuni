@@ -17,7 +17,7 @@ abstract final class AppRoutes {
   static const String passengerHome = '/passenger/home';
   static const String passengerMap = '/passenger/map';
   static const String passengerWallet = '/passenger/wallet';
-  static const String passengerBookRide = '/passenger/book-ride';
+
   static const String passengerRecentTrips = '/passenger/recent-trips';
   static const String passengerNotifications = '/passenger/notifications';
   static const String passengerSettings = '/passenger/settings';

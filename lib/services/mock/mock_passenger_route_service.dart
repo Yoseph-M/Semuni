@@ -18,6 +18,12 @@ abstract interface class PassengerRouteService {
 
   /// Returns all routes that serve [stationId] as a destination.
   Future<List<PassengerRoute>> getRoutesToStation(String stationId);
+
+  /// Searches routes matching both starting and ending points.
+  Future<List<PassengerRoute>> searchRoutes({
+    required String fromQuery,
+    required String toQuery,
+  });
 }
 
 /// Mock implementation of [PassengerRouteService].
@@ -340,5 +346,29 @@ class MockPassengerRouteService implements PassengerRouteService {
   Future<List<PassengerRoute>> getRoutesToStation(String stationId) async {
     await Future<void>.delayed(simulatedDelay);
     return _routes.where((r) => r.endStation == stationId).toList();
+  }
+
+  @override
+  Future<List<PassengerRoute>> searchRoutes({
+    required String fromQuery,
+    required String toQuery,
+  }) async {
+    await Future<void>.delayed(simulatedDelay);
+    final fromQ = fromQuery.trim().toLowerCase();
+    final toQ = toQuery.trim().toLowerCase();
+
+    if (fromQ.isEmpty && toQ.isEmpty) return [];
+
+    return _routes.where((r) {
+      final matchesFrom =
+          fromQ.isEmpty ||
+          r.startStation.toLowerCase().contains(fromQ) ||
+          r.startLabel.toLowerCase().contains(fromQ);
+      final matchesTo =
+          toQ.isEmpty ||
+          r.endStation.toLowerCase().contains(toQ) ||
+          r.endLabel.toLowerCase().contains(toQ);
+      return matchesFrom && matchesTo;
+    }).toList();
   }
 }

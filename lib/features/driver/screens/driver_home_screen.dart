@@ -10,20 +10,15 @@ import '../widgets/driver_balance_card.dart';
 import '../widgets/driver_bottom_nav.dart';
 import '../widgets/driver_earnings_card.dart';
 import '../widgets/driver_home_header.dart';
-import '../widgets/driver_primary_actions.dart';
 import '../widgets/driver_recent_transactions_section.dart';
-import '../widgets/driver_status_card.dart';
 
 /// Complete SMUNI Driver Home Dashboard.
 ///
 /// Features:
 /// - Environment background #F7FCF8 with dark green #1C5E40 brand accents
 /// - Profile greeting header with notification action and logout
-/// - Online/Offline status toggle card
-/// - Prominent today's earnings card with gradient background
 /// - Available balance card with quick Withdraw CTA
 /// - Today's activity summary (completed rides, total earnings, avg fare)
-/// - Primary quick actions: Transactions, Withdraw, Routes
 /// - Recent transactions section from mock repository
 /// - Three-tab bottom navigation (Home, Routes, Settings)
 class DriverHomeScreen extends StatefulWidget {
@@ -41,9 +36,6 @@ class DriverHomeScreen extends StatefulWidget {
 }
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
-  /// Online/Offline availability toggle state.
-  bool _isOnline = true;
-
   late final DriverDashboardRepository _dashboardRepository;
   late Future<DriverActivity> _activityFuture;
 
@@ -82,15 +74,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   ),
                   const SizedBox(height: AppConstants.spacingMd),
 
-                  // 2. Online / Offline status toggle
-                  DriverStatusCard(
-                    isOnline: _isOnline,
-                    onStatusChanged: (value) {
-                      setState(() => _isOnline = value);
-                    },
-                  ),
-                  const SizedBox(height: AppConstants.spacingLg),
-
                   // 3. Today's Earnings (async from repository)
                   FutureBuilder<DriverActivity>(
                     future: _activityFuture,
@@ -120,10 +103,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     },
                   ),
                   const SizedBox(height: AppConstants.spacingLg),
-
-                  // 6. Primary Quick Actions: Transactions | Withdraw | Routes
-                  const DriverPrimaryActions(),
-                  const SizedBox(height: AppConstants.spacingXl),
 
                   // 7. Recent Transactions Section
                   DriverRecentTransactionsSection(

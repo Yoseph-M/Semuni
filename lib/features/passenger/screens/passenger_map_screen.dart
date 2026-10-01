@@ -4,7 +4,6 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../models/passenger_route.dart';
-import '../../../navigation/app_routes.dart';
 import '../../../repositories/passenger_route_repository.dart';
 import '../widgets/passenger_bottom_nav.dart';
 
@@ -29,7 +28,8 @@ class PassengerMapScreen extends StatefulWidget {
 
 class _PassengerMapScreenState extends State<PassengerMapScreen> {
   late final PassengerRouteRepository _repository;
-  late final TextEditingController _searchController;
+  late final TextEditingController _fromController;
+  late final TextEditingController _toController;
 
   /// All stations loaded from the repository.
   List<TaxiStation> _stations = [];
@@ -53,13 +53,15 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
   void initState() {
     super.initState();
     _repository = widget.passengerRouteRepository ?? PassengerRouteRepository();
-    _searchController = TextEditingController();
+    _fromController = TextEditingController();
+    _toController = TextEditingController();
     _loadStations();
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _fromController.dispose();
+    _toController.dispose();
     super.dispose();
   }
 
@@ -79,8 +81,10 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
     }
   }
 
-  Future<void> _searchDestination(String query) async {
-    if (query.trim().isEmpty) {
+  Future<void> _searchRoutes() async {
+    final fromQ = _fromController.text;
+    final toQ = _toController.text;
+    if (fromQ.trim().isEmpty && toQ.trim().isEmpty) {
       setState(() {
         _routes = [];
         _hasSearched = false;
@@ -94,7 +98,10 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
       _selectedStation = null;
     });
     try {
-      final results = await _repository.searchByDestination(query);
+      final results = await _repository.searchRoutes(
+        fromQuery: fromQ,
+        toQuery: toQ,
+      );
       if (mounted) {
         setState(() {
           _routes = results;
@@ -109,7 +116,8 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
   Future<void> _selectStation(TaxiStation station) async {
     setState(() {
       _selectedStation = station;
-      _searchController.text = station.name;
+      _toController.text = station.name;
+      _fromController.clear();
       _isLoading = true;
       _hasSearched = true;
     });
@@ -127,7 +135,8 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
   }
 
   void _clearSearch() {
-    _searchController.clear();
+    _fromController.clear();
+    _toController.clear();
     setState(() {
       _routes = [];
       _hasSearched = false;
@@ -167,8 +176,9 @@ class _PassengerMapScreenState extends State<PassengerMapScreen> {
 
             // ── Search Bar ───────────────────────────────────────────────────
             _SearchPanel(
-              controller: _searchController,
-              onChanged: _searchDestination,
+              fromController: _fromController,
+              toController: _toController,
+              onSearch: _searchRoutes,
               onClear: _clearSearch,
             ),
 
@@ -617,13 +627,15 @@ class _CurrentLocationPin extends StatelessWidget {
 
 class _SearchPanel extends StatelessWidget {
   const _SearchPanel({
-    required this.controller,
-    required this.onChanged,
+    required this.fromController,
+    required this.toController,
+    required this.onSearch,
     required this.onClear,
   });
 
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
+  final TextEditingController fromController;
+  final TextEditingController toController;
+  final VoidCallback onSearch;
   final VoidCallback onClear;
 
   @override
@@ -650,30 +662,31 @@ class _SearchPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Where do you want to go?',
+            'Discover Routes',
             style: AppTextStyles.titleLarge.copyWith(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: AppConstants.spacingSm),
+          // From Input
           TextField(
-            controller: controller,
-            onChanged: onChanged,
+            controller: fromController,
+            onChanged: (_) => onSearch(),
             style: AppTextStyles.bodyMedium.copyWith(
               color: AppColors.textPrimary,
             ),
             decoration: InputDecoration(
-              hintText: 'e.g. Piazza, Bole, Megenagna...',
+              hintText: 'From (e.g. Bole)',
               hintStyle: AppTextStyles.bodyMedium.copyWith(
                 color: AppColors.textHint,
               ),
               prefixIcon: const Icon(
-                Icons.search_rounded,
-                color: AppColors.primary,
+                Icons.radio_button_on_rounded,
+                color: AppColors.success,
               ),
               suffixIcon: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: controller,
+                valueListenable: fromController,
                 builder: (_, value, _) {
                   if (value.text.isEmpty) return const SizedBox.shrink();
                   return IconButton(
@@ -681,8 +694,68 @@ class _SearchPanel extends StatelessWidget {
                       Icons.close_rounded,
                       color: AppColors.textSecondary,
                     ),
-                    onPressed: onClear,
-                    tooltip: 'Clear search',
+                    onPressed: () {
+                      fromController.clear();
+                      onSearch();
+                    },
+                    tooltip: 'Clear from',
+                  );
+                },
+              ),
+              filled: true,
+              fillColor: AppColors.inputFill,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppConstants.spacingMd,
+                vertical: AppConstants.spacingSm,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                borderSide: const BorderSide(color: AppColors.inputBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                borderSide: const BorderSide(color: AppColors.inputBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                borderSide: const BorderSide(
+                  color: AppColors.inputFocusBorder,
+                  width: 1.5,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppConstants.spacingSm),
+          // To Input
+          TextField(
+            controller: toController,
+            onChanged: (_) => onSearch(),
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: 'To (e.g. Piazza)',
+              hintStyle: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textHint,
+              ),
+              prefixIcon: const Icon(
+                Icons.location_on_rounded,
+                color: AppColors.error,
+              ),
+              suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: toController,
+                builder: (_, value, _) {
+                  if (value.text.isEmpty) return const SizedBox.shrink();
+                  return IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.textSecondary,
+                    ),
+                    onPressed: () {
+                      toController.clear();
+                      onSearch();
+                    },
+                    tooltip: 'Clear to',
                   );
                 },
               ),
@@ -821,8 +894,9 @@ class _DestinationChip extends StatelessWidget {
         final state = context
             .findAncestorStateOfType<_PassengerMapScreenState>();
         if (state != null) {
-          state._searchController.text = label;
-          state._searchDestination(label);
+          state._toController.text = label;
+          state._fromController.clear();
+          state._searchRoutes();
         }
       },
     );
@@ -1313,46 +1387,6 @@ class _RouteDetailSheet extends StatelessWidget {
                           ),
                         ),
                       ],
-
-                      const SizedBox(height: AppConstants.spacingXl),
-
-                      // Book Ride CTA
-                      SizedBox(
-                        width: double.infinity,
-                        height: AppConstants.minTouchTarget + 4,
-                        child: ElevatedButton.icon(
-                          onPressed: route.isAvailable
-                              ? () {
-                                  Navigator.of(context).pop();
-                                  Navigator.of(context).pushNamed(
-                                    AppRoutes.passengerBookRide,
-                                    arguments: route,
-                                  );
-                                }
-                              : null,
-                          icon: const Icon(Icons.arrow_forward_rounded),
-                          label: Text(
-                            route.isAvailable
-                                ? 'Continue to Booking'
-                                : 'Route Unavailable',
-                            style: AppTextStyles.labelLarge,
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: AppColors.textOnPrimary,
-                            disabledBackgroundColor: AppColors.surfaceVariant,
-                            disabledForegroundColor: AppColors.textHint,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppConstants.radiusMd,
-                              ),
-                            ),
-                            elevation: 0,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: AppConstants.spacingMd),
                     ],
                   ),
                 ),

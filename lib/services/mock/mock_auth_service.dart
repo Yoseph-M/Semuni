@@ -95,17 +95,16 @@ class _Endpoints {
 /// The database is the single source of truth for who can log in.
 class ApiAuthService implements AuthService {
   ApiAuthService({http.Client? client, String? baseUrl})
-      : _client = client ?? http.Client(),
-        _baseUrl = baseUrl ?? _Endpoints.defaultBase;
+    : _client = client ?? http.Client(),
+      _baseUrl = baseUrl ?? _Endpoints.defaultBase;
 
   final http.Client _client;
   final String _baseUrl;
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {
     final pathSeg = path.startsWith('/') ? path : '/$path';
-    return Uri.parse(
-      '$_baseUrl${_Endpoints.apiPrefix}$pathSeg',
-    ).replace(queryParameters: query);
+    return Uri.parse('$_baseUrl${_Endpoints.apiPrefix}$pathSeg')
+        .replace(queryParameters: query);
   }
 
   static String _roleName(bool isPassenger) =>
@@ -174,7 +173,9 @@ class ApiAuthService implements AuthService {
           )
           .timeout(const Duration(seconds: 12));
     } on TimeoutException {
-      return AuthResult.failure('Connection timed out. Is the backend running?');
+      return AuthResult.failure(
+        'Connection timed out. Is the backend running?',
+      );
     } on Object catch (e) {
       return AuthResult.failure(
         'Could not reach the backend (${e.runtimeType}). Is the backend running on ${_Endpoints.defaultBase}?',
@@ -196,7 +197,8 @@ class ApiAuthService implements AuthService {
     try {
       final parsed = _parseJson(loginRes.body);
       final data = parsed['data'] as Map<String, dynamic>;
-      accessToken = (data['accessToken'] ?? data['access_token'] ?? '') as String;
+      accessToken =
+          (data['accessToken'] ?? data['access_token'] ?? '') as String;
     } on Object {
       return AuthResult.failure('Unexpected response from /auth/login.');
     }
@@ -211,9 +213,7 @@ class ApiAuthService implements AuthService {
       profileRes = await _client
           .get(
             _uri(profilePath),
-            headers: {
-              'Authorization': 'Bearer $accessToken',
-            },
+            headers: {'Authorization': 'Bearer $accessToken'},
           )
           .timeout(const Duration(seconds: 10));
     } on TimeoutException {

@@ -112,7 +112,8 @@ class _LoginFormState extends State<LoginForm> {
       } else {
         setState(() {
           _isLoading = false;
-          _errorMessage = result.errorMessage ??
+          _errorMessage =
+              result.errorMessage ??
               'Invalid username or password. Please try again.';
         });
       }
@@ -327,7 +328,6 @@ class _LoginFormState extends State<LoginForm> {
                   )
                 : const Text('Login'),
           ),
-
         ],
       ),
     );

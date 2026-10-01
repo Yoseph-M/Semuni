@@ -6,30 +6,30 @@ import '../../../core/constants/app_constants.dart';
 import '../../../navigation/app_routes.dart';
 
 /// Primary quick action cards below the wallet balance card:
-/// - "Book Ride" (Material car icon) → [AppRoutes.passengerBookRide]
+/// - "Find Route" (Material car icon) → [AppRoutes.passengerMap]
 /// - "Wallet" (Material wallet icon) → [AppRoutes.passengerWallet]
 class PassengerPrimaryActions extends StatelessWidget {
   const PassengerPrimaryActions({
     super.key,
-    this.onBookRideTap,
+    this.onFindRouteTap,
     this.onWalletTap,
   });
 
-  final VoidCallback? onBookRideTap;
+  final VoidCallback? onFindRouteTap;
   final VoidCallback? onWalletTap;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Action 1: Book Ride — navigates to the Map/Route Discovery screen.
+        // Action 1: Find Route — navigates to the Map/Route Discovery screen.
         Expanded(
           child: _ActionCard(
-            title: 'Book Ride',
-            subtitle: 'Find taxi or route',
+            title: 'Find Route',
+            subtitle: 'Search taxi stations',
             icon: Icons.directions_car_outlined,
             onTap:
-                onBookRideTap ??
+                onFindRouteTap ??
                 () {
                   Navigator.of(context).pushNamed(AppRoutes.passengerMap);
                 },

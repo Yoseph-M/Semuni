@@ -16,7 +16,7 @@ import '../widgets/recent_trips_section.dart';
 /// - Environment background in #F7FCF8 with dark green #1C5E40 brand accents
 /// - Profile greeting header with notification action
 /// - Primary wallet balance card with subtle green gradient & Top Up CTA
-/// - Quick actions: "Book Ride" and "Wallet"
+/// - Quick actions: "Find Route" and "Wallet"
 /// - "Recent Trips" section with realistic Ethiopian route data
 /// - Three-tab bottom navigation (Map, Home, Settings)
 class PassengerHomeScreen extends StatelessWidget {
@@ -60,7 +60,7 @@ class PassengerHomeScreen extends StatelessWidget {
                   PassengerWalletCard(balance: balance),
                   const SizedBox(height: AppConstants.spacingLg),
 
-                  // 3. Primary Actions (Book Ride | Wallet)
+                  // 3. Primary Actions (Find Route | Wallet)
                   const PassengerPrimaryActions(),
                   const SizedBox(height: AppConstants.spacingXl),
 

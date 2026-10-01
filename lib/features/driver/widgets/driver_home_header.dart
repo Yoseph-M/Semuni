@@ -20,13 +20,11 @@ class DriverHomeHeader extends StatelessWidget {
     required this.driverName,
     required this.authRepository,
     this.onNotificationTap,
-    this.onLogoutTap,
   });
 
   final String driverName;
   final AuthRepository authRepository;
   final VoidCallback? onNotificationTap;
-  final VoidCallback? onLogoutTap;
 
   @override
   Widget build(BuildContext context) {
@@ -116,47 +114,6 @@ class DriverHomeHeader extends StatelessWidget {
                   Icons.notifications_outlined,
                   size: AppConstants.iconMd + 2,
                   color: AppColors.textPrimary,
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        const SizedBox(width: AppConstants.spacingXs),
-
-        // Logout Action Button
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap:
-                onLogoutTap ??
-                () async {
-                  await authRepository.logout();
-                  if (context.mounted) {
-                    Navigator.of(context).pushReplacementNamed(AppRoutes.login);
-                  }
-                },
-            borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                border: Border.all(color: AppColors.border, width: 1.0),
-                boxShadow: const [
-                  BoxShadow(
-                    color: AppColors.shadow,
-                    blurRadius: 4,
-                    offset: Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.logout_rounded,
-                  size: AppConstants.iconMd,
-                  color: AppColors.textSecondary,
                 ),
               ),
             ),

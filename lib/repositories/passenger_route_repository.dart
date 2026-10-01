@@ -28,4 +28,10 @@ class PassengerRouteRepository {
   /// Returns all routes that serve [stationId] as a destination.
   Future<List<PassengerRoute>> getRoutesToStation(String stationId) =>
       _service.getRoutesToStation(stationId);
+
+  /// Searches routes matching both starting and ending points.
+  Future<List<PassengerRoute>> searchRoutes({
+    required String fromQuery,
+    required String toQuery,
+  }) => _service.searchRoutes(fromQuery: fromQuery, toQuery: toQuery);
 }

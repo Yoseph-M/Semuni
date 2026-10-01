@@ -24,8 +24,6 @@ Widget buildMapScreen({PassengerRouteRepository? repository}) {
           const Scaffold(body: Text('Wallet Balance')),
       AppRoutes.passengerSettings: (_) =>
           const Scaffold(body: Text('Settings')),
-      AppRoutes.passengerBookRide: (_) =>
-          const Scaffold(body: Text('Book Ride')),
     },
     home: PassengerMapScreen(passengerRouteRepository: repo),
   );

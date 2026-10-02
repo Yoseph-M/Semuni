@@ -8,7 +8,24 @@ abstract interface class TripService {
   /// Fetches the recent trips taken by the passenger.
   Future<List<Trip>> getRecentTrips({int limit = 5});
 
-  /// Records a completed taxi journey.
+  /// Loads one trip by its backend id.
+  Future<Trip> getTrip(String tripId);
+
+  /// Creates a trip for a journey the passenger is actually taking.
+  ///
+  /// The backend prices it; [driverId] is the driver's user id.
+  Future<Trip> createTrip({
+    required String driverId,
+    required String routeId,
+    required String originStopId,
+    required String destinationStopId,
+    required String origin,
+    required String destination,
+    String? vehicleId,
+    String? vehicleType,
+  });
+
+  /// Records a completed taxi journey (mock-era; no backend equivalent).
   Future<Trip> completeJourney({
     required String fromLocation,
     required String toLocation,
@@ -16,7 +33,7 @@ abstract interface class TripService {
     String? routeCode,
   });
 
-  /// Books a new ride request for the passenger.
+  /// Books a new ride request for the passenger (mock-era; no backend equivalent).
   Future<Trip> bookRide({
     required String fromLocation,
     required String toLocation,
@@ -86,6 +103,49 @@ class MockTripService implements TripService {
       await Future<void>.delayed(simulatedDelay);
     }
     return _trips.take(limit).toList();
+  }
+
+  @override
+  Future<Trip> getTrip(String tripId) async {
+    if (simulatedDelay > Duration.zero) {
+      await Future<void>.delayed(simulatedDelay);
+    }
+    final matches = _trips.where((trip) => trip.id == tripId);
+    if (matches.isEmpty) {
+      throw StateError('Unknown trip $tripId');
+    }
+    return matches.first;
+  }
+
+  @override
+  Future<Trip> createTrip({
+    required String driverId,
+    required String routeId,
+    required String originStopId,
+    required String destinationStopId,
+    required String origin,
+    required String destination,
+    String? vehicleId,
+    String? vehicleType,
+  }) async {
+    if (simulatedDelay > Duration.zero) {
+      await Future<void>.delayed(simulatedDelay);
+    }
+
+    final newTrip = Trip(
+      id: 'TRP-${++_idCounter}',
+      fromLocation: origin,
+      toLocation: destination,
+      amountPaid: 85.00,
+      completedAt: DateTime.now(),
+      driverName: 'Mock Driver',
+      status: TripStatus.requested,
+      fareMinor: 8500,
+      paymentStatus: 'UNPAID',
+    );
+
+    _trips.insert(0, newTrip);
+    return newTrip;
   }
 
   @override

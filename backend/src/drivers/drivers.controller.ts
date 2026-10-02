@@ -9,12 +9,7 @@ import {
   HttpCode,
   ParseUUIDPipe,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiBearerAuth,
-  ApiParam,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { DriversService } from './drivers.service';
 import { VehiclesService } from '../vehicles/vehicles.service';
 import { WalletsService } from '../wallets/wallets.service';
@@ -45,6 +40,33 @@ export class DriversController {
     private readonly withdrawalsService: WithdrawalsService,
     private readonly passengersService: PassengersService,
   ) {}
+
+  @Get('available')
+  @Roles(UserRole.PASSENGER)
+  @ApiOperation({
+    summary:
+      'List drivers a passenger may pay (ACTIVE drivers with their minibus). Minimal identity only: a passenger picks the vehicle they are riding in.',
+  })
+  async findAvailable() {
+    const drivers = await this.driversService.findActive();
+    const vehicles = await this.vehiclesService.findByDriverIds(
+      drivers.map((driver) => driver.userId),
+    );
+    const plateByDriver = new Map(vehicles.map((vehicle) => [vehicle.driverId, vehicle]));
+
+    return {
+      data: drivers.map((driver) => {
+        const vehicle = plateByDriver.get(driver.userId);
+        return {
+          driverUserId: driver.userId,
+          fullName: driver.fullName,
+          vehiclePlate: vehicle?.plateNumber ?? null,
+          vehicleType: vehicle?.vehicleType ?? null,
+        };
+      }),
+      meta: {},
+    };
+  }
 
   @Get('me')
   @Roles(UserRole.DRIVER)
@@ -82,9 +104,7 @@ export class DriversController {
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const todayTrips = trips.filter(
-      (t) => t.createdAt >= todayStart,
-    );
+    const todayTrips = trips.filter((t) => t.createdAt >= todayStart);
     const todayEarnings = todayTrips.reduce(
       (sum, t) => sum + (t.paymentStatus === 'PAID' ? t.fareAmount : 0),
       0,
@@ -93,13 +113,8 @@ export class DriversController {
       (sum, t) => sum + (t.paymentStatus === 'PAID' ? t.fareAmount : 0),
       0,
     );
-    const completedRides = todayTrips.filter(
-      (t) => t.paymentStatus === 'PAID',
-    ).length;
-    const avgFare =
-      completedRides > 0
-        ? Math.round(todayEarnings / completedRides)
-        : 0;
+    const completedRides = todayTrips.filter((t) => t.paymentStatus === 'PAID').length;
+    const avgFare = completedRides > 0 ? Math.round(todayEarnings / completedRides) : 0;
 
     return {
       data: {
@@ -132,9 +147,7 @@ export class DriversController {
         const trip = tripByRef.get(e.referenceId);
         if (trip) {
           try {
-            const p = await this.passengersService.findByUserId(
-              trip.passengerId,
-            );
+            const p = await this.passengersService.findByUserId(trip.passengerId);
             if (p) passengerName = p.fullName;
           } catch (_) {}
         }
@@ -172,14 +185,8 @@ export class DriversController {
   @Roles(UserRole.DRIVER)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Request a withdrawal from driver wallet' })
-  async requestWithdrawal(
-    @CurrentUser() user: User,
-    @Body() dto: RequestWithdrawalDto,
-  ) {
-    const withdrawal = await this.withdrawalsService.requestWithdrawal(
-      user.id,
-      dto,
-    );
+  async requestWithdrawal(@CurrentUser() user: User, @Body() dto: RequestWithdrawalDto) {
+    const withdrawal = await this.withdrawalsService.requestWithdrawal(user.id, dto);
     return {
       data: withdrawal,
       meta: { message: 'Withdrawal requested successfully' },
@@ -190,9 +197,7 @@ export class DriversController {
   @Roles(UserRole.DRIVER)
   @ApiOperation({ summary: 'Get withdrawal history for current driver' })
   async getMyWithdrawals(@CurrentUser() user: User) {
-    const withdrawals = await this.withdrawalsService.getMyWithdrawals(
-      user.id,
-    );
+    const withdrawals = await this.withdrawalsService.getMyWithdrawals(user.id);
     return { data: withdrawals, meta: {} };
   }
 

@@ -1,4 +1,5 @@
-import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, OneToOne, JoinColumn, Index, ManyToOne } from 'typeorm';
+import { Wallet } from '../../wallets/entities/wallet.entity';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { User } from '../../users/entities/user.entity';
 import { DriverStatus } from '../../common/enums';
@@ -24,6 +25,12 @@ export class Driver extends BaseEntity {
   @Column({ type: 'enum', enum: DriverStatus, default: DriverStatus.PENDING })
   status: DriverStatus;
 
-  @Column({ nullable: true })
+  /** Convenience pointer; the owning edge is `wallets.userId`. */
+  @Column({ type: 'uuid', nullable: true })
+  @Index('IDX_drivers_walletId')
   walletId?: string;
+
+  @ManyToOne(() => Wallet, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'walletId', foreignKeyConstraintName: 'FK_drivers_walletId' })
+  wallet?: Wallet;
 }

@@ -71,7 +71,7 @@ describe('PaymentsService', () => {
     };
 
     notificationsService = {
-      sendPushNotification: jest.fn().mockResolvedValue(true),
+      enqueue: jest.fn().mockResolvedValue(undefined),
     };
 
     dataSource = {
@@ -215,7 +215,10 @@ describe('PaymentsService', () => {
       expect(result.receiptNumber).toBe('SEM-' + new Date().getFullYear() + '-000042');
       expect(result.completedAt).toBeInstanceOf(Date);
       expect(tripsService.markPaid).toHaveBeenCalledWith(manager, 'trip-1', 'attempt-1');
-      expect(notificationsService.sendPushNotification).toHaveBeenCalledTimes(2);
+      expect(notificationsService.enqueue).toHaveBeenCalledWith(manager, [
+        expect.objectContaining({ title: 'Payment Successful' }),
+        expect.objectContaining({ title: 'Payment Received' }),
+      ]);
     });
 
     it('CRITICAL: the locked trip — not the pre-flight read — decides the amount charged', async () => {
@@ -295,7 +298,7 @@ describe('PaymentsService', () => {
           failureReason: ErrorCode.WALLET_INSUFFICIENT_BALANCE,
         }),
       );
-      expect(notificationsService.sendPushNotification).not.toHaveBeenCalled();
+      expect(notificationsService.enqueue).not.toHaveBeenCalled();
     });
 
     it('maps a database unique violation on the trip index to TRIP_ALREADY_PAID', async () => {
@@ -342,12 +345,9 @@ describe('PaymentsService', () => {
       expect(paymentRepo.save).not.toHaveBeenCalled();
     });
 
-    it('does not let a notification failure affect a settled payment', async () => {
+    it('queues notifications inside the payment transaction', async () => {
       paymentRepo.findOne.mockResolvedValue(null);
       tripsService.findById.mockResolvedValue(makeTrip());
-      notificationsService.sendPushNotification.mockRejectedValue(
-        new Error('push provider down'),
-      );
       const manager = makeManager(makeTrip(), {
         id: 'attempt-1',
         tripId: 'trip-1',
@@ -358,9 +358,8 @@ describe('PaymentsService', () => {
       const result = await service.processTripPayment('pass-user-1', dto);
 
       expect(result.status).toBe(PaymentRecordStatus.SUCCESS);
-      // Let the fire-and-forget notification rejections settle; they must not
-      // surface as unhandled errors or affect the result.
-      await new Promise((resolve) => setImmediate(resolve));
+      // Same manager as the money movement: the rows commit or roll back with it.
+      expect(notificationsService.enqueue.mock.calls[0][0]).toBe(manager);
     });
   });
 });

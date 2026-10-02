@@ -4,6 +4,8 @@ import { PaymentProvider } from '../../common/enums';
 
 export class TopUpWalletDto {
   @ApiProperty({ description: 'Amount to top-up in minor units (santim)', example: 100000 })
+  // Money is integer minor units. A fractional amount is not representable in
+  // the ledger, so it is rejected at the edge rather than rounded silently.
   @IsInt()
   @IsPositive()
   @IsNotEmpty()

@@ -73,9 +73,7 @@ That error means exactly one thing: the process found no `.env` in `backend/`
 
 Fix it on the new machine:
 
-1. Create `backend/.env` **next to `package.json`** (note: the first line of
-   `.env.example` is literally `[TEMPLATE]` — it is a marker, not a key; delete
-   it when copying).
+1. Create `backend/.env` **next to `package.json`** (`cp .env.example .env`).
 2. Fill in at minimum:
 
    | Key | Notes |
@@ -343,11 +341,17 @@ Passenger wallet --DEBIT 8500--> Trip payment --CREDIT 8500--> Driver wallet
         100000 -> 91500                        0 -> 8500
 ```
 
+## Operations
+
+Probes, scheduled jobs (top-up reconciliation, notification dispatch, integrity checks), Telebirr setup, logs, audit trail and incident steps: see [docs/RUNBOOK.md](docs/RUNBOOK.md).
+
 ## Payment providers
 
 The wallet core depends only on the `PaymentProviderGateway` port
 (`src/payments/providers/payment-provider.gateway.ts`). The implementation is chosen
-from `PAYMENT_PROVIDER` (default `MOCK`). `MockPaymentProvider` performs no network
-calls and holds no credentials. Telebirr/Chapa are intentionally not implemented —
-the registry raises an error rather than silently falling back to the mock provider,
-which would fake a settlement.
+from `PAYMENT_PROVIDER` (default `MOCK`, refused in production). `MockPaymentProvider`
+performs no network calls and holds no credentials. `TelebirrPaymentProvider`
+implements Telebirr H5 C2B web checkout (signed preOrder/queryOrder, RSA-verified
+notifications); configure it with the `TELEBIRR_*` variables in `.env.example`.
+Telebirr withdrawals and Chapa are not implemented — the registry raises an error
+rather than silently falling back to the mock provider, which would fake a settlement.

@@ -40,6 +40,29 @@ class ApiAuthService implements AuthService {
   }) => _login(username: username, password: password, isPassenger: false);
 
   @override
+  Future<Passenger?> refreshPassenger() async {
+    try {
+      final profile = await _client.get('/passengers/me');
+      return _passengerFromJson(profile.asMap);
+    } on ApiException {
+      // The caller decides what to do; a failed refresh must not sign anyone
+      // out or wipe the currently displayed profile.
+      return null;
+    }
+  }
+
+  @override
+  Future<Driver?> refreshDriver() async {
+    try {
+      final profile = await _client.get('/drivers/me');
+      final earnings = await _tryFetchTodayEarnings();
+      return _driverFromJson(profile.asMap, earnings);
+    } on ApiException {
+      return null;
+    }
+  }
+
+  @override
   Future<void> logout() async {
     // Revoke server-side when we can (the refresh-token chain is invalidated
     // there), but never block sign-out on it: a user who taps "log out" must

@@ -349,7 +349,9 @@ Probes, scheduled jobs (top-up reconciliation, notification dispatch, integrity 
 
 The wallet core depends only on the `PaymentProviderGateway` port
 (`src/payments/providers/payment-provider.gateway.ts`). The implementation is chosen
-from `PAYMENT_PROVIDER` (default `MOCK`). `MockPaymentProvider` performs no network
-calls and holds no credentials. Telebirr/Chapa are intentionally not implemented —
-the registry raises an error rather than silently falling back to the mock provider,
-which would fake a settlement.
+from `PAYMENT_PROVIDER` (default `MOCK`, refused in production). `MockPaymentProvider`
+performs no network calls and holds no credentials. `TelebirrPaymentProvider`
+implements Telebirr H5 C2B web checkout (signed preOrder/queryOrder, RSA-verified
+notifications); configure it with the `TELEBIRR_*` variables in `.env.example`.
+Telebirr withdrawals and Chapa are not implemented — the registry raises an error
+rather than silently falling back to the mock provider, which would fake a settlement.

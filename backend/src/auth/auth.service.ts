@@ -88,8 +88,21 @@ export class AuthService {
       );
     }
 
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      throw new DomainException(
+        'Too many failed login attempts. Try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+        ErrorCode.AUTH_ACCOUNT_LOCKED,
+      );
+    }
+
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isPasswordValid) {
+      await this.usersService.recordFailedLogin(
+        user.id,
+        Number(this.configService.get('AUTH_LOCKOUT_THRESHOLD', 5)),
+        Number(this.configService.get('AUTH_LOCKOUT_MINUTES', 15)),
+      );
       throw new DomainException(
         'Invalid username or password',
         HttpStatus.UNAUTHORIZED,

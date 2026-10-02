@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Vehicle } from './entities/vehicle.entity';
 import { DomainException } from '../common/domain.exception';
 import { ErrorCode } from '../common/error-codes';
@@ -24,6 +24,19 @@ export class VehiclesService {
 
   async findByDriverId(driverId: string): Promise<Vehicle | null> {
     return this.vehicleRepository.findOne({ where: { driverId } });
+  }
+
+  /**
+   * Vehicles for many drivers in one query.
+   *
+   * Exists so a listing (e.g. the passenger-visible driver picker) does not
+   * issue one query per driver.
+   */
+  async findByDriverIds(driverUserIds: string[]): Promise<Vehicle[]> {
+    if (driverUserIds.length === 0) return [];
+    return this.vehicleRepository.find({
+      where: { driverId: In(driverUserIds) },
+    });
   }
 
   async findByIdOrFail(id: string): Promise<Vehicle> {
@@ -92,7 +105,7 @@ export class VehiclesService {
         ErrorCode.VEHICLE_NOT_FOUND,
       );
     }
-    
+
     vehicle.driverId = driverId;
     return this.vehicleRepository.save(vehicle);
   }

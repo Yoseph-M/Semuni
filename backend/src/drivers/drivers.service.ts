@@ -20,9 +20,7 @@ export class DriversService {
     licenseNumber: string,
     manager?: EntityManager,
   ): Promise<Driver> {
-    const repo = manager
-      ? manager.getRepository(Driver)
-      : this.driverRepository;
+    const repo = manager ? manager.getRepository(Driver) : this.driverRepository;
     const driver = repo.create({
       user,
       userId: user.id,
@@ -35,6 +33,21 @@ export class DriversService {
 
   async findByUserId(userId: string): Promise<Driver | null> {
     return this.driverRepository.findOne({ where: { userId } });
+  }
+
+  /**
+   * Drivers a passenger may board and pay: ACTIVE only.
+   *
+   * Deliberately minimal — a passenger needs to identify the minibus they are
+   * in (driver + plate), not to browse the driver roster. PENDING/SUSPENDED
+   * drivers are omitted because a trip naming them would be rejected anyway
+   * (DRIVER_NOT_ACTIVE), so showing them would only produce broken flows.
+   */
+  async findActive(): Promise<Driver[]> {
+    return this.driverRepository.find({
+      where: { status: DriverStatus.ACTIVE },
+      order: { fullName: 'ASC' },
+    });
   }
 
   async findByUserIdOrFail(userId: string): Promise<Driver> {

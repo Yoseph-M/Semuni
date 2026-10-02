@@ -43,6 +43,20 @@ export enum ErrorCode {
   // Fare / Tariff
   TARIFF_NOT_FOUND = 'TARIFF_NOT_FOUND',
   TARIFF_RULE_NOT_FOUND = 'TARIFF_RULE_NOT_FOUND',
+  /** The requested tariff version identifier is already taken. Versions are never reused. */
+  TARIFF_VERSION_EXISTS = 'TARIFF_VERSION_EXISTS',
+  /** The requested lifecycle transition is not allowed from the tariff's current status. */
+  TARIFF_STATUS_INVALID = 'TARIFF_STATUS_INVALID',
+  /** validTo <= validFrom, or the window does not currently permit activation. */
+  TARIFF_WINDOW_INVALID = 'TARIFF_WINDOW_INVALID',
+  /** Another ACTIVE tariff already covers this window; regulators must expire it first. */
+  TARIFF_WINDOW_OVERLAP = 'TARIFF_WINDOW_OVERLAP',
+  /**
+   * More than one rule matched a fare request equally well (same route, segment
+   * containment, vehicle specificity and range width). Guessing would make the
+   * fare non-deterministic, so the pricing configuration is rejected instead.
+   */
+  TARIFF_RULE_AMBIGUOUS = 'TARIFF_RULE_AMBIGUOUS',
   FARE_CALCULATION_FAILED = 'FARE_CALCULATION_FAILED',
   /** The client-quoted fare disagreed with the server-calculated official fare. */
   FARE_MISMATCH = 'FARE_MISMATCH',

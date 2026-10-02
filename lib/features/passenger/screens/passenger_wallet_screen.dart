@@ -1,13 +1,27 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/utils/app_formatters.dart';
 import '../../../models/passenger_wallet_transaction.dart';
+import '../../../models/top_up_intent.dart';
 import '../../../repositories/passenger_wallet_repository.dart';
 import '../../../repositories/auth_repository.dart';
 
+/// Passenger wallet: the authoritative balance and ledger, plus top-ups.
+///
+/// A top-up is never a local balance increase. It is:
+///
+///   1. create an intent (`POST /wallet/top-up`) — no money moves
+///   2. the passenger pays through the provider's checkout
+///   3. confirm (`POST /wallet/top-up/:id/confirm`) — the backend verifies the
+///      provider and credits the wallet exactly once
+///   4. re-read the balance from the server
 class PassengerWalletScreen extends StatefulWidget {
   const PassengerWalletScreen({
     super.key,
@@ -26,31 +40,37 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
   bool _isLoading = true;
   String? _error;
   List<PassengerWalletTransaction> _transactions = [];
+  double? _balanceEtb;
 
   @override
   void initState() {
     super.initState();
-    _loadTransactions();
+    _loadWallet();
   }
 
-  Future<void> _loadTransactions() async {
+  Future<void> _loadWallet() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      final txs = await widget.walletRepository.getTransactionHistory();
-      if (mounted) {
-        setState(() {
-          _transactions = txs;
-          _isLoading = false;
-        });
-      }
+      final results = await Future.wait<Object>([
+        widget.walletRepository.getBalance(),
+        widget.walletRepository.getTransactionHistory(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _balanceEtb = results[0] as double;
+        _transactions = results[1] as List<PassengerWalletTransaction>;
+        _isLoading = false;
+      });
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Failed to load wallet transactions.';
+          _error = e is ApiException
+              ? e.userMessage
+              : 'Failed to load your wallet.';
           _isLoading = false;
         });
       }
@@ -70,55 +90,75 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
       builder: (ctx) => _TopUpSheet(
         onConfirm: (amount) async {
           Navigator.of(ctx).pop(); // close sheet
-          await _processTopUp(amount);
+          await _startTopUp(amount);
         },
       ),
     );
   }
 
-  Future<void> _processTopUp(double amount) async {
-    // Show a loading overlay
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      ),
-    );
+  Future<void> _startTopUp(double amount) async {
+    // One key per logical top-up; a retry of this same top-up reuses it, and
+    // the backend then returns the same intent instead of creating another.
+    final idempotencyKey = _newIdempotencyKey();
 
     try {
-      await widget.walletRepository.topUp(amount);
-      if (!mounted) return;
-      Navigator.of(context).pop(); // dismiss loading
-
-      // Refresh list to show new transaction
-      await _loadTransactions();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Top Up Successful\n${AppFormatters.formatCurrency(amount)} added to your wallet.',
-            style: const TextStyle(color: Colors.white),
-          ),
-          backgroundColor: AppColors.success,
-        ),
+      final intent = await widget.walletRepository.initiateTopUp(
+        amountEtb: amount,
+        idempotencyKey: idempotencyKey,
       );
-    } catch (e) {
       if (!mounted) return;
-      Navigator.of(context).pop(); // dismiss loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to top up. Please try again.'),
-          backgroundColor: AppColors.error,
-        ),
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _TopUpCheckoutDialog(intent: intent),
       );
+      if (confirmed != true || !mounted) return;
+
+      final confirmation = await widget.walletRepository.confirmTopUp(
+        intent.intentId,
+      );
+      if (!mounted) return;
+
+      await widget.authRepository.refreshPassengerProfile();
+      await _afterCredit(confirmation);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showSnack(error.userMessage, isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      _showSnack('Failed to top up. Please try again.', isError: true);
     }
+  }
+
+  Future<void> _afterCredit(TopUpConfirmation confirmation) async {
+    setState(() => _balanceEtb = confirmation.balanceEtb);
+    await _loadWallet();
+    if (!mounted) return;
+    _showSnack(
+      'Top Up Successful\nYour wallet balance is now '
+      '${AppFormatters.formatCurrency(confirmation.balanceEtb)}.',
+    );
+  }
+
+  void _showSnack(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: isError ? AppColors.error : AppColors.success,
+      ),
+    );
+  }
+
+  static String _newIdempotencyKey() {
+    final stamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final entropy = Random().nextInt(0x7fffffff).toRadixString(36);
+    return 'flutter-topup-$stamp-$entropy';
   }
 
   @override
   Widget build(BuildContext context) {
-    final balance = widget.authRepository.passengerWalletBalance;
+    final balance = _balanceEtb;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -130,7 +170,7 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
       ),
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _loadTransactions,
+          onRefresh: _loadWallet,
           color: AppColors.primary,
           child: ListView(
             padding: const EdgeInsets.all(AppConstants.screenHorizontalPadding),
@@ -167,7 +207,9 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
                     ),
                     const SizedBox(height: AppConstants.spacingSm),
                     Text(
-                      AppFormatters.formatCurrency(balance),
+                      balance == null
+                          ? '—'
+                          : AppFormatters.formatCurrency(balance),
                       style: AppTextStyles.displayMedium.copyWith(
                         color: AppColors.textOnPrimary,
                         fontWeight: FontWeight.w700,
@@ -240,6 +282,12 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
                           style: AppTextStyles.bodyMedium.copyWith(
                             color: AppColors.textSecondary,
                           ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: AppConstants.spacingMd),
+                        OutlinedButton(
+                          onPressed: _loadWallet,
+                          child: const Text('Try again'),
                         ),
                       ],
                     ),
@@ -273,6 +321,87 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Shown after an intent exists: the passenger pays outside the app (when the
+/// provider hosts checkout) and only then confirms, which makes the backend
+/// verify and credit.
+class _TopUpCheckoutDialog extends StatelessWidget {
+  const _TopUpCheckoutDialog({required this.intent});
+
+  final TopUpIntentView intent;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = intent.checkoutUrl;
+    final hasCheckout = intent.requiresExternalCheckout;
+
+    return AlertDialog(
+      title: Text('Pay ${AppFormatters.formatCurrency(intent.amountEtb)}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            hasCheckout
+                ? 'Complete the payment through ${intent.provider} checkout, then come back and confirm. '
+                      'Your wallet is credited only after Semuni verifies the payment.'
+                : 'Provider ${intent.provider} will verify this payment when you confirm. '
+                      'Your wallet is credited only after that verification.',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          if (hasCheckout) ...[
+            const SizedBox(height: AppConstants.spacingMd),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppConstants.spacingSm),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: SelectableText(
+                url!,
+                maxLines: 4,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: url));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Checkout link copied'),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                label: const Text('Copy link'),
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text("I've paid — Confirm"),
+        ),
+      ],
     );
   }
 }
@@ -482,8 +611,8 @@ class _TopUpSheetState extends State<_TopUpSheet> {
               ),
               child: Text(
                 _selectedAmount != null && _selectedAmount! > 0
-                    ? 'Confirm Top Up (${AppFormatters.formatCurrency(_selectedAmount!)})'
-                    : 'Confirm Top Up',
+                    ? 'Continue (${AppFormatters.formatCurrency(_selectedAmount!)})'
+                    : 'Continue',
                 style: AppTextStyles.labelLarge.copyWith(
                   fontWeight: FontWeight.bold,
                 ),

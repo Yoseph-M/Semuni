@@ -20,6 +20,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { UserRole, UserStatus } from '../src/common/enums';
 import { ErrorCode } from '../src/common/error-codes';
+import { deleteLedgerEntries } from './utils/ledger-cleanup';
 
 describe('Auth (e2e)', () => {
   let app: NestFastifyApplication;
@@ -82,11 +83,10 @@ describe('Auth (e2e)', () => {
       // Every account this suite creates is prefixed `e2e_`, so cleanup is a
       // single prefix match (refresh_sessions cascade from users).
       const prefix = '^e2e_';
-      // ledger_entries.walletId is varchar while wallets.id is uuid, so the
-      // id must be cast before comparing.
-      await dataSource.query(
+      await deleteLedgerEntries(
+        dataSource,
         `DELETE FROM ledger_entries WHERE "walletId" IN (
-           SELECT w.id::text FROM wallets w JOIN users u ON u.id = w."userId"
+           SELECT w.id FROM wallets w JOIN users u ON u.id = w."userId"
            WHERE u.username ~ $1
          )`,
         [prefix],

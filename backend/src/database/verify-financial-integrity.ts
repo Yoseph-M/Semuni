@@ -139,6 +139,18 @@ const FINDINGS: Finding[] = [
     hint: 'top-up amounts are positive integer minor units',
     sql: `SELECT id, "userId", "amountMinor" FROM top_up_intents WHERE "amountMinor" <= 0`,
   },
+  {
+    label: 'wallets whose balance differs from their ledger',
+    hint: 'balance must equal ledger credits minus debits',
+    sql: `SELECT w.id, w.balance, COALESCE(l.net, 0) AS "ledgerNet"
+          FROM wallets w
+          LEFT JOIN (
+            SELECT "walletId",
+                   SUM(CASE WHEN direction = 'CREDIT' THEN amount ELSE -amount END) AS net
+            FROM ledger_entries GROUP BY "walletId"
+          ) l ON l."walletId" = w.id
+          WHERE w.balance <> COALESCE(l.net, 0)`,
+  },
 ];
 
 async function runReport(): Promise<void> {
@@ -183,7 +195,7 @@ async function main(): Promise<void> {
           'one SUCCESS payment per trip',
           '23505',
           `INSERT INTO payments ("tripId", "passengerId", "driverId", amount, status, "idempotencyKey")
-           VALUES ($1, 'probe', 'probe', 1, 'SUCCESS', 'probe-' || gen_random_uuid())`,
+           VALUES ($1, gen_random_uuid(), gen_random_uuid(), 1, 'SUCCESS', 'probe-' || gen_random_uuid())`,
           [tripPayment.tripId],
         );
       }
@@ -240,8 +252,44 @@ async function main(): Promise<void> {
         'positive payment amount',
         '23514',
         `INSERT INTO payments ("tripId", "passengerId", "driverId", amount, "idempotencyKey")
-         VALUES ('probe', 'probe', 'probe', 0, 'probe-' || gen_random_uuid())`,
+         VALUES (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 0, 'probe-' || gen_random_uuid())`,
       );
+
+      // 7. A payment pointing at a trip/user that does not exist.
+      await probe(
+        'payment foreign keys',
+        '23503',
+        `INSERT INTO payments ("tripId", "passengerId", "driverId", amount, "idempotencyKey")
+         VALUES (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 1, 'probe-' || gen_random_uuid())`,
+      );
+
+      // 8. A ledger row for a wallet that does not exist.
+      await probe(
+        'ledger wallet foreign key',
+        '23503',
+        `INSERT INTO ledger_entries ("walletId", "entryType", direction, amount, "balanceBefore", "balanceAfter")
+         VALUES (gen_random_uuid(), 'ADJUSTMENT', 'CREDIT', 1, 0, 1)`,
+      );
+
+      // 9–11. The ledger is append-only.
+      const [entry] = await dataSource.query(`SELECT id FROM ledger_entries LIMIT 1`);
+      if (entry) {
+        await probe(
+          'ledger UPDATE rejected',
+          '23001',
+          `UPDATE ledger_entries SET description = 'tampered' WHERE id = $1`,
+          [entry.id],
+        );
+        await probe(
+          'ledger DELETE rejected',
+          '23001',
+          `DELETE FROM ledger_entries WHERE id = $1`,
+          [entry.id],
+        );
+      } else {
+        console.log('⏭️  ledger UPDATE/DELETE: skipped (no ledger entries yet)');
+      }
+      await probe('ledger TRUNCATE rejected', '23001', `TRUNCATE ledger_entries`);
     } else {
       await runReport();
     }

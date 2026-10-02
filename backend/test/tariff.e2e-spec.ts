@@ -224,7 +224,7 @@ describe('Tariff versioning and lifecycle (e2e)', () => {
 
   afterAll(async () => {
     if (dataSource?.isInitialized) {
-      const inUsers = `SELECT id::text FROM users WHERE username ~ $1`;
+      const inUsers = `SELECT id FROM users WHERE username ~ $1`;
       await dataSource.query(
         `DELETE FROM trips WHERE "passengerId" IN (${inUsers}) OR "driverId" IN (${inUsers})`,
         [usernamePattern],

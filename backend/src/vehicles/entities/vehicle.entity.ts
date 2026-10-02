@@ -1,4 +1,5 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { VehicleType, VehicleStatus } from '../../common/enums';
 
@@ -16,6 +17,12 @@ export class Vehicle extends BaseEntity {
   @Column({ type: 'enum', enum: VehicleStatus, default: VehicleStatus.ACTIVE })
   status: VehicleStatus;
 
-  @Column({ nullable: true })
-  driverId?: string; // Links back to a driver for simple assignment
+  /** The assigned driver's user id. */
+  @Column({ type: 'uuid', nullable: true })
+  @Index('IDX_vehicles_driverId')
+  driverId?: string;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'driverId', foreignKeyConstraintName: 'FK_vehicles_driverId' })
+  driver?: User;
 }

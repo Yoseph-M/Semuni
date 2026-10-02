@@ -40,6 +40,7 @@ import {
 } from '../src/common/enums';
 import { ErrorCode } from '../src/common/error-codes';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
+import { deleteLedgerEntries } from './utils/ledger-cleanup';
 
 describe('Authorization (e2e)', () => {
   let app: NestFastifyApplication;
@@ -248,10 +249,11 @@ describe('Authorization (e2e)', () => {
 
   afterAll(async () => {
     if (dataSource?.isInitialized) {
-      const inUsers = `SELECT id::text FROM users WHERE username ~ $1`;
-      await dataSource.query(
+      const inUsers = `SELECT id FROM users WHERE username ~ $1`;
+      await deleteLedgerEntries(
+        dataSource,
         `DELETE FROM ledger_entries WHERE "walletId" IN (
-           SELECT w.id::text FROM wallets w JOIN users u ON u.id = w."userId"
+           SELECT w.id FROM wallets w JOIN users u ON u.id = w."userId"
            WHERE u.username ~ $1
          )`,
         [usernamePattern],

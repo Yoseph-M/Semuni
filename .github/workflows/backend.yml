@@ -73,6 +73,9 @@ jobs:
       - name: Run migrations
         run: npm run migration:run
 
+      - name: Entities match migrations (no schema drift)
+        run: npm run migration:check
+
       - name: E2E tests
         run: npm run test:e2e
 

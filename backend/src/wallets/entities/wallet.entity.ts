@@ -1,9 +1,10 @@
-import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, OneToOne, JoinColumn, Check } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { User } from '../../users/entities/user.entity';
 import { WalletStatus, Currency } from '../../common/enums';
 
 @Entity('wallets')
+@Check('CHK_wallet_balance_nonnegative', '"balance" >= 0')
 export class Wallet extends BaseEntity {
   @OneToOne(() => User)
   @JoinColumn()

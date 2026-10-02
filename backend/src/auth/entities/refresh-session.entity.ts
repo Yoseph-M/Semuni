@@ -1,4 +1,5 @@
-import { Entity, Column, Index } from 'typeorm';
+import { Entity, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 import { BaseEntity } from '../../common/entities/base.entity';
 
 /**
@@ -11,9 +12,13 @@ import { BaseEntity } from '../../common/entities/base.entity';
 @Entity('refresh_sessions')
 export class RefreshSession extends BaseEntity {
   /** The user this session authenticates. Indexed for "revoke all my sessions". */
-  @Column()
-  @Index()
+  @Column({ type: 'uuid' })
+  @Index('IDX_refresh_sessions_userId')
   userId: string;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userId', foreignKeyConstraintName: 'FK_refresh_sessions_userId' })
+  user?: User;
 
   /** The JWT `jti` claim — the lookup key for a presented refresh token. */
   @Column({ unique: true })

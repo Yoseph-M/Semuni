@@ -1,4 +1,6 @@
-import { Entity, Column, Index } from 'typeorm';
+import { Entity, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import { Withdrawal } from '../../withdrawals/entities/withdrawal.entity';
 import { BaseEntity } from '../../common/entities/base.entity';
 import {
   WithdrawalStatus,
@@ -7,13 +9,21 @@ import {
 
 @Entity('settlements')
 export class Settlement extends BaseEntity {
-  @Column()
+  @Column({ type: 'uuid' })
   @Index()
   driverId: string;
 
-  @Column({ nullable: true })
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'driverId', foreignKeyConstraintName: 'FK_settlements_driverId' })
+  driver?: User;
+
+  @Column({ type: 'uuid', nullable: true })
   @Index()
   withdrawalId?: string;
+
+  @ManyToOne(() => Withdrawal)
+  @JoinColumn({ name: 'withdrawalId', foreignKeyConstraintName: 'FK_settlements_withdrawalId' })
+  withdrawal?: Withdrawal;
 
   @Column({ type: 'int' })
   amount: number;

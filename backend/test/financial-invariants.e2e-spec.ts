@@ -37,6 +37,7 @@ import {
 } from '../src/common/enums';
 import { ErrorCode } from '../src/common/error-codes';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
+import { deleteLedgerEntries } from './utils/ledger-cleanup';
 
 describe('Financial invariants (e2e)', () => {
   let app: NestFastifyApplication;
@@ -255,10 +256,11 @@ describe('Financial invariants (e2e)', () => {
       // `payments."passengerId"` is varchar), and PostgreSQL does not compare
       // uuid to varchar implicitly — each statement names the matching form.
       const inUsersUuid = `SELECT id FROM users WHERE username ~ $1`;
-      const inUsersText = `SELECT id::text FROM users WHERE username ~ $1`;
+      const inUsersText = `SELECT id FROM users WHERE username ~ $1`;
 
-      await dataSource.query(
-        `DELETE FROM ledger_entries WHERE "walletId" IN (SELECT id::text FROM wallets WHERE "userId" IN (${inUsersUuid}))`,
+      await deleteLedgerEntries(
+        dataSource,
+        `DELETE FROM ledger_entries WHERE "walletId" IN (SELECT id FROM wallets WHERE "userId" IN (${inUsersUuid}))`,
         [usernamePattern],
       );
       await dataSource.query(
@@ -341,7 +343,7 @@ describe('Financial invariants (e2e)', () => {
       const rows = await dataSource.query(
         `SELECT direction, amount, "balanceBefore", "balanceAfter"
            FROM ledger_entries le
-           JOIN wallets w ON w.id::text = le."walletId"
+           JOIN wallets w ON w.id = le."walletId"
           WHERE w."userId" = $1::uuid AND le."referenceType" = 'TOP_UP'`,
         [passenger.id],
       );
@@ -413,6 +415,48 @@ describe('Financial invariants (e2e)', () => {
       ).rejects.toMatchObject({ code: '23514' });
     });
 
+    it('CRITICAL: PostgreSQL refuses to UPDATE, DELETE or TRUNCATE ledger rows', async () => {
+      const [wallet] = await dataSource.query(
+        `SELECT id FROM wallets WHERE "userId" = $1::uuid`,
+        [passenger.id],
+      );
+      const reference = `fin-append-only-${suffix}`;
+      const [entry] = await dataSource.query(
+        `INSERT INTO ledger_entries ("walletId", "entryType", direction, amount, "balanceBefore", "balanceAfter", "referenceType", "referenceId")
+         VALUES ($1, 'ADJUSTMENT', 'CREDIT', 100, 0, 100, 'PROBE', $2) RETURNING id`,
+        [wallet.id, reference],
+      );
+
+      await expect(
+        dataSource.query(
+          `UPDATE ledger_entries SET amount = 1, "balanceAfter" = 1 WHERE id = $1`,
+          [entry.id],
+        ),
+      ).rejects.toMatchObject({ code: '23001' });
+      await expect(
+        dataSource.query(`DELETE FROM ledger_entries WHERE id = $1`, [entry.id]),
+      ).rejects.toMatchObject({ code: '23001' });
+      await expect(
+        dataSource.query(`TRUNCATE ledger_entries`),
+      ).rejects.toMatchObject({ code: '23001' });
+
+      await deleteLedgerEntries(
+        dataSource,
+        `DELETE FROM ledger_entries WHERE id = $1`,
+        [entry.id],
+      );
+    });
+
+    it('CRITICAL: PostgreSQL refuses a payment for a trip that does not exist', async () => {
+      await expect(
+        dataSource.query(
+          `INSERT INTO payments ("tripId", "passengerId", "driverId", amount, "idempotencyKey")
+           VALUES (gen_random_uuid(), $1, $1, 100, $2)`,
+          [passenger.id, `fin-orphan-${suffix}`],
+        ),
+      ).rejects.toMatchObject({ code: '23503' });
+    });
+
     it('CRITICAL: PostgreSQL refuses a second movement for the same wallet reference', async () => {
       const [wallet] = await dataSource.query(
         `SELECT id FROM wallets WHERE "userId" = $1::uuid`,
@@ -434,7 +478,8 @@ describe('Financial invariants (e2e)', () => {
         ),
       ).rejects.toMatchObject({ code: '23505' });
 
-      await dataSource.query(
+      await deleteLedgerEntries(
+        dataSource,
         `DELETE FROM ledger_entries WHERE "referenceId" = $1`,
         [reference],
       );
@@ -667,7 +712,7 @@ describe('Financial invariants (e2e)', () => {
 
       const rows = await dataSource.query(
         `SELECT COUNT(*)::int AS n FROM ledger_entries le
-           JOIN wallets w ON w.id::text = le."walletId"
+           JOIN wallets w ON w.id = le."walletId"
           WHERE w."userId" = $1::uuid AND le."entryType" = 'WITHDRAWAL' AND le."referenceId" = $2`,
         [driver.id, first.body.data.id],
       );

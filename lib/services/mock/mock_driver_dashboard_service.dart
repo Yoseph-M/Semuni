@@ -1,5 +1,6 @@
 import '../../models/driver_activity.dart';
 import '../../models/driver_transaction.dart';
+import '../../models/driver_withdrawal.dart';
 
 /// Abstract service for fetching driver dashboard metrics and transaction history.
 ///
@@ -12,14 +13,18 @@ abstract interface class DriverDashboardService {
   /// Fetches the recent transactions for the authenticated driver.
   Future<List<DriverTransaction>> getRecentTransactions({int limit = 5});
 
-  /// Submits a mock withdrawal request.
+  /// Requests a withdrawal from the driver's wallet.
   ///
-  /// Returns the resulting [DriverTransaction] on success.
-  /// Throws a [WithdrawalException] on failure.
-  Future<DriverTransaction> submitWithdrawal({
-    required String driverId,
-    required double amount,
-    required String method,
+  /// There is no generic "method" string in the financial contract: the
+  /// destination type, destination and an idempotency key are explicit, and
+  /// the backend re-checks the driver's balance and status itself.
+  Future<DriverWithdrawal> requestWithdrawal({
+    required double amountEtb,
+    required WithdrawalDestinationType destinationType,
+    String? destination,
+    String? destinationAccount,
+    String? provider,
+    required String idempotencyKey,
   });
 }
 
@@ -119,21 +124,26 @@ class MockDriverDashboardService implements DriverDashboardService {
   }
 
   @override
-  Future<DriverTransaction> submitWithdrawal({
-    required String driverId,
-    required double amount,
-    required String method,
+  Future<DriverWithdrawal> requestWithdrawal({
+    required double amountEtb,
+    required WithdrawalDestinationType destinationType,
+    String? destination,
+    String? destinationAccount,
+    String? provider,
+    required String idempotencyKey,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
 
-    // Mock: always succeeds.
-    return DriverTransaction(
-      id: 'tx_w_${DateTime.now().millisecondsSinceEpoch}',
-      description: 'Wallet Withdrawal',
-      amount: amount,
-      type: DriverTransactionType.withdrawal,
+    // Test-only: accepts the request. It does not model provider settlement,
+    // because the real flow is the backend's business.
+    return DriverWithdrawal(
+      id: 'mock-withdrawal-$idempotencyKey',
+      amountMinor: (amountEtb * 100).round(),
+      currency: 'ETB',
+      status: 'PENDING',
+      destinationType: destinationType,
+      destination: destination,
       createdAt: DateTime.now(),
-      passengerName: method,
     );
   }
 }

@@ -1,5 +1,5 @@
 import {
-  IsNumber,
+  IsInt,
   IsPositive,
   IsNotEmpty,
   IsEnum,
@@ -14,7 +14,9 @@ import {
 
 export class RequestWithdrawalDto {
   @ApiProperty({ description: 'Amount in minor units (santim)' })
-  @IsNumber()
+  // Integer minor units only: the wallet holds integers, and a fractional
+  // withdrawal would be rounded somewhere below, silently changing the amount.
+  @IsInt()
   @IsPositive()
   @IsNotEmpty()
   amount: number;

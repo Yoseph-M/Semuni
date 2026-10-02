@@ -308,6 +308,10 @@ always the server's.
 2. **Admin approves the driver** — `POST /drivers/admin/:id/approve`. Trips cannot be
    created against a driver who is not `ACTIVE`.
 3. **Login** — `POST /auth/login` with `{ username, password, role }`; keep `accessToken`.
+3a. **Find the driver to pay (passenger)** — `GET /drivers/available` returns only `ACTIVE`
+   drivers, and only what a passenger needs to identify the minibus they are riding in:
+   `{ driverUserId, fullName, vehiclePlate, vehicleType }`. `driverUserId` is the
+   `driverId` that `POST /trips` expects.
 4. **Fund the passenger wallet** — top-up is a two-step flow because money entering
    the platform cannot be taken on the client's word:
    ```bash

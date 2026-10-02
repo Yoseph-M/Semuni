@@ -1,3 +1,4 @@
+import { PaymentProviderRegistry } from '../payments/providers/payment-provider.registry';
 import { Test, TestingModule } from '@nestjs/testing';
 import { WithdrawalsService } from './withdrawals.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -72,6 +73,17 @@ describe('WithdrawalsService', () => {
         { provide: getRepositoryToken(Withdrawal), useValue: withdrawalRepo },
         { provide: WalletsService, useValue: walletsService },
         { provide: DataSource, useValue: dataSource },
+        {
+          provide: PaymentProviderRegistry,
+          useValue: {
+            defaultProvider: () => PaymentProvider.MOCK,
+            get: () => ({
+              initiateWithdrawal: jest
+                .fn()
+                .mockResolvedValue({ providerReference: 'MOCK-WD-test' }),
+            }),
+          },
+        },
       ],
     }).compile();
 

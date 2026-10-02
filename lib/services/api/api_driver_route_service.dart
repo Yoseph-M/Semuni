@@ -20,13 +20,14 @@ class ApiDriverRouteService implements DriverRouteService {
   }
 
   static DriverRoute _toModel(Map<String, dynamic> data) {
-    final stops = data['stops'] is List
-        ? (data['stops'] as List).whereType<Map<String, dynamic>>().toList()
-          ..sort(
-            (a, b) => ((a['sequence'] as num?) ?? 0)
-                .compareTo((b['sequence'] as num?) ?? 0),
-          )
+    final rawStops = data['stops'];
+    final stops = rawStops is List
+        ? rawStops.whereType<Map<String, dynamic>>().toList()
         : <Map<String, dynamic>>[];
+    stops.sort(
+      (a, b) =>
+          ((a['sequence'] as num?) ?? 0).compareTo((b['sequence'] as num?) ?? 0),
+    );
 
     final origin = stops.isNotEmpty
         ? (_string(stops.first['name']) ??
@@ -41,7 +42,7 @@ class ApiDriverRouteService implements DriverRouteService {
 
     return DriverRoute(
       id: _string(data['id']) ?? '',
-      name: _string(data['name']) ?? (origin + ' → ' + destination),
+      name: _string(data['name']) ?? '$origin → $destination',
       startLocation: origin,
       endLocation: destination,
       fare: 0.0,

@@ -22,6 +22,8 @@ export enum ErrorCode {
   AUTH_USER_INACTIVE = 'AUTH_USER_INACTIVE',
   /** Credentials were valid, but the account has not been activated yet. */
   AUTH_USER_PENDING = 'AUTH_USER_PENDING',
+  /** Too many consecutive failed logins; the account is temporarily locked. */
+  AUTH_ACCOUNT_LOCKED = 'AUTH_ACCOUNT_LOCKED',
 
   // Wallet
   WALLET_INSUFFICIENT_BALANCE = 'WALLET_INSUFFICIENT_BALANCE',

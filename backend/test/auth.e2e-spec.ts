@@ -183,6 +183,40 @@ describe('Auth (e2e)', () => {
       .expect(HttpStatus.UNAUTHORIZED);
   });
 
+  it('POST /auth/login — locks the account after repeated failed passwords', async () => {
+    const username = `e2e_lockout_${suffix}`;
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ ...passengerRegister, username })
+      .expect(HttpStatus.CREATED);
+
+    const attempt = (pw: string) =>
+      request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ username, password: pw, role: UserRole.PASSENGER });
+
+    for (let i = 0; i < 5; i++) {
+      await attempt('wrong-password').expect(HttpStatus.UNAUTHORIZED);
+    }
+    // Locked: even the correct password is refused until the lock expires.
+    await attempt(password)
+      .expect(HttpStatus.TOO_MANY_REQUESTS)
+      .expect((res) => {
+        expect(res.body.code).toEqual(ErrorCode.AUTH_ACCOUNT_LOCKED);
+      });
+
+    await dataSource.query(
+      `UPDATE users SET "lockedUntil" = now() - interval '1 minute' WHERE username = $1`,
+      [username],
+    );
+    await attempt(password).expect(HttpStatus.OK);
+    const [row] = await dataSource.query(
+      `SELECT "failedLoginAttempts", "lockedUntil" FROM users WHERE username = $1`,
+      [username],
+    );
+    expect(row).toEqual({ failedLoginAttempts: 0, lockedUntil: null });
+  });
+
   it('GET /auth/me — returns the current user without the password hash', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/auth/me')

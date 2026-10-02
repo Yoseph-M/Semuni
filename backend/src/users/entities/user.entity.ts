@@ -26,4 +26,12 @@ export class User extends BaseEntity {
 
   @Column({ type: 'timestamp with time zone', nullable: true })
   lastLoginAt?: Date;
+
+  /** Consecutive failed password attempts since the last success or lockout. */
+  @Column({ type: 'integer', default: 0, select: false })
+  failedLoginAttempts: number;
+
+  /** Login is refused until this instant after too many failed attempts. */
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  lockedUntil?: Date | null;
 }

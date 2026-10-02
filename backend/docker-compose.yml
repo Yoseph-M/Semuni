@@ -6,15 +6,15 @@ services:
     container_name: semuni-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: semuni
-      POSTGRES_PASSWORD: semuni_dev_password
-      POSTGRES_DB: semuni
+      POSTGRES_USER: ${DB_USERNAME:-semuni}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-semuni_dev_password}
+      POSTGRES_DB: ${DB_DATABASE:-semuni}
     ports:
       - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U semuni']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-semuni}']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -30,23 +30,12 @@ services:
         condition: service_healthy
     ports:
       - '3000:3000'
+    # Secrets come from backend/.env (never committed); only the in-network
+    # database host is overridden here.
+    env_file: .env
     environment:
-      NODE_ENV: development
-      PORT: 3000
-      API_PREFIX: api/v1
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_USERNAME: semuni
-      DB_PASSWORD: semuni_dev_password
-      DB_DATABASE: semuni
-      JWT_ACCESS_SECRET: dev-access-secret-change-in-production
-      JWT_REFRESH_SECRET: dev-refresh-secret-change-in-production
-      JWT_ACCESS_EXPIRES_IN: 15m
-      JWT_REFRESH_EXPIRES_IN: 7d
-      CORS_ORIGIN: '*'
-      THROTTLE_TTL: 60000
-      THROTTLE_LIMIT: 100
-      PAYMENT_PROVIDER: MOCK
 
 volumes:
   pgdata:

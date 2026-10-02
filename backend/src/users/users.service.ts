@@ -71,6 +71,28 @@ export class UsersService {
   }
 
   async updateLastLogin(id: string): Promise<void> {
-    await this.userRepository.update(id, { lastLoginAt: new Date() });
+    await this.userRepository.update(id, {
+      lastLoginAt: new Date(),
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    });
+  }
+
+  /**
+   * Atomically counts a failed password attempt. Reaching `threshold` locks the
+   * account for `lockMinutes` and resets the counter for the next window.
+   */
+  async recordFailedLogin(
+    id: string,
+    threshold: number,
+    lockMinutes: number,
+  ): Promise<void> {
+    await this.userRepository.query(
+      `UPDATE users SET
+         "failedLoginAttempts" = CASE WHEN "failedLoginAttempts" + 1 >= $2 THEN 0 ELSE "failedLoginAttempts" + 1 END,
+         "lockedUntil" = CASE WHEN "failedLoginAttempts" + 1 >= $2 THEN now() + make_interval(mins => $3) ELSE "lockedUntil" END
+       WHERE id = $1`,
+      [id, threshold, lockMinutes],
+    );
   }
 }

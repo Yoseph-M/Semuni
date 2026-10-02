@@ -22,12 +22,14 @@ import { HealthModule } from './health/health.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { CustomLogger } from './common/logger/custom.logger';
 import { LoggerInterceptor } from './common/interceptors/logger.interceptor';
+import { validateEnv } from './config/env.validation';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env'],
+      validate: validateEnv,
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],

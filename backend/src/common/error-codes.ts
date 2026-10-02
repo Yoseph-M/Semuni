@@ -22,6 +22,8 @@ export enum ErrorCode {
   AUTH_USER_INACTIVE = 'AUTH_USER_INACTIVE',
   /** Credentials were valid, but the account has not been activated yet. */
   AUTH_USER_PENDING = 'AUTH_USER_PENDING',
+  /** Too many consecutive failed logins; the account is temporarily locked. */
+  AUTH_ACCOUNT_LOCKED = 'AUTH_ACCOUNT_LOCKED',
 
   // Wallet
   WALLET_INSUFFICIENT_BALANCE = 'WALLET_INSUFFICIENT_BALANCE',
@@ -43,6 +45,12 @@ export enum ErrorCode {
   PAYMENT_NOT_FOUND = 'PAYMENT_NOT_FOUND',
   /** The payment exists but belongs to a different passenger/driver. */
   PAYMENT_NOT_OWNED = 'PAYMENT_NOT_OWNED',
+  /** The provider has not finished the payment yet; nothing was credited. */
+  PAYMENT_PENDING = 'PAYMENT_PENDING',
+  /** The provider is unreachable, misconfigured, or does not offer this operation. */
+  PAYMENT_PROVIDER_UNAVAILABLE = 'PAYMENT_PROVIDER_UNAVAILABLE',
+  /** A provider callback failed signature, freshness, or merchant checks. */
+  WEBHOOK_SIGNATURE_INVALID = 'WEBHOOK_SIGNATURE_INVALID',
 
   // Fare / Tariff
   TARIFF_NOT_FOUND = 'TARIFF_NOT_FOUND',

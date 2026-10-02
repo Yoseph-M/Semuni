@@ -18,7 +18,8 @@ import { TariffRule } from './tariff-rule.entity';
 @Entity('tariffs')
 export class Tariff extends BaseEntity {
   /** Immutable, unique, never-reused version identifier (e.g. TARIFF-2026-001). */
-  @Column({ unique: true })
+  @Index('UQ_tariffs_version', { unique: true })
+  @Column()
   version: string;
 
   @Column()

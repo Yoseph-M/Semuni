@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
+import { DomainException } from '../../common/domain.exception';
+import { ErrorCode } from '../../common/error-codes';
 import { PaymentProvider as PaymentProviderName } from '../../common/enums';
 import {
   InitiateTopUpParams,
@@ -53,5 +55,18 @@ export class MockPaymentProvider implements PaymentProviderGateway {
     return {
       providerReference: `${MockPaymentProvider.WITHDRAWAL_PREFIX}${params.idempotencyKey}`,
     };
+  }
+
+  parseWebhook(body: unknown): string {
+    const reference = (body as { providerReference?: unknown } | undefined)
+      ?.providerReference;
+    if (typeof reference !== 'string' || !reference) {
+      throw new DomainException(
+        'providerReference is required',
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR,
+      );
+    }
+    return reference;
   }
 }

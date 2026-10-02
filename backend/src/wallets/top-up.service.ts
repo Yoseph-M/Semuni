@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, LessThan, Not, Repository } from 'typeorm';
 import { TopUpIntent } from './entities/top-up-intent.entity';
 import { Wallet } from './entities/wallet.entity';
 import { WalletsService } from './wallets.service';
@@ -16,11 +16,20 @@ export interface TopUpResult {
   wallet: Wallet;
 }
 
+export interface ReconcileSummary {
+  checked: number;
+  settled: number;
+  failed: number;
+  expired: number;
+  stillPending: number;
+  errors: number;
+}
+
 /**
  * Wallet top-ups, as a three-step flow:
  *
  *   1. initiate()  — record the intent, hand it to the provider. No money moves.
- *   2. provider    — the user pays outside Semuni (mock provider here).
+ *   2. provider    — the user pays outside Semuni (e.g. Telebirr checkout).
  *   3. confirm() / settleByProviderReference() — verify with the provider, then
  *      credit the wallet.
  *
@@ -40,7 +49,7 @@ export class TopUpService {
 
   /** Step 1 — create the intent and register it with the provider. */
   async initiate(userId: string, dto: TopUpWalletDto): Promise<TopUpIntent> {
-    const provider = dto.provider ?? PaymentProvider.MOCK;
+    const provider = dto.provider ?? this.providerRegistry.defaultProvider();
 
     // Idempotency keys are scoped to the user who generated them: one user's key
     // must never resolve to (or block) another user's top-up.
@@ -81,14 +90,25 @@ export class TopUpService {
       }),
     );
 
-    const initiation = await gateway.initiateTopUp({
-      userId,
-      amountMinor: dto.amount,
-      currency: intent.currency,
-      idempotencyKey: dto.idempotencyKey,
-    });
+    let initiation;
+    try {
+      initiation = await gateway.initiateTopUp({
+        userId,
+        amountMinor: dto.amount,
+        currency: intent.currency,
+        idempotencyKey: dto.idempotencyKey,
+      });
+    } catch (err) {
+      // No money has moved (initiation only creates an order), so the intent
+      // can be closed; the client retries with a fresh idempotency key.
+      intent.status = TopUpIntentStatus.FAILED;
+      intent.failureReason = 'Provider initiation failed';
+      await this.intentRepository.save(intent);
+      throw err;
+    }
 
     intent.providerReference = initiation.providerReference;
+    intent.checkoutUrl = initiation.checkoutUrl;
     const saved = await this.intentRepository.save(intent);
 
     this.logger.log('Top-up initiated (awaiting provider confirmation)', TopUpService.name, {
@@ -126,9 +146,10 @@ export class TopUpService {
   /** Step 3 (provider path) — webhook / reconciliation entry point. */
   async settleByProviderReference(
     providerReference: string,
+    provider: PaymentProvider,
   ): Promise<TopUpResult> {
     const intent = await this.intentRepository.findOne({
-      where: { providerReference },
+      where: { providerReference, provider },
     });
     if (!intent) {
       throw new DomainException(
@@ -169,10 +190,40 @@ export class TopUpService {
       );
     }
 
+    if (!intent.providerReference) {
+      throw new DomainException(
+        'Top-up has no provider reference',
+        HttpStatus.CONFLICT,
+        ErrorCode.PAYMENT_FAILED,
+      );
+    }
+
     const gateway = this.providerRegistry.get(intent.provider);
     const verification = await gateway.verifyTransaction(
-      intent.providerReference ?? '',
+      intent.providerReference,
     );
+
+    if (verification.pending) {
+      throw new DomainException(
+        'The payment has not been completed yet',
+        HttpStatus.CONFLICT,
+        ErrorCode.PAYMENT_PENDING,
+      );
+    }
+
+    if (
+      verification.verified &&
+      verification.amountMinor !== undefined &&
+      verification.amountMinor !== intent.amountMinor
+    ) {
+      this.logger.error('Top-up amount mismatch', undefined, TopUpService.name, {
+        intentId: intent.id,
+        expected: intent.amountMinor,
+        confirmed: verification.amountMinor,
+      });
+      verification.verified = false;
+      verification.failureReason = 'Confirmed amount does not match the top-up';
+    }
 
     if (!verification.verified) {
       intent.status = TopUpIntentStatus.FAILED;
@@ -217,5 +268,77 @@ export class TopUpService {
     });
 
     return { intent, wallet };
+  }
+
+  /**
+   * Settles PENDING top-ups whose callback never arrived (or failed), by asking
+   * the provider directly. Safe to run concurrently with callbacks and with
+   * itself: settle() and the wallet credit are both idempotent.
+   *
+   * Intents still unpaid after [expireAfterMinutes] are marked EXPIRED.
+   */
+  async reconcilePending(options: {
+    olderThanMinutes: number;
+    expireAfterMinutes: number;
+    limit?: number;
+  }): Promise<ReconcileSummary> {
+    const now = Date.now();
+    const intents = await this.intentRepository.find({
+      where: {
+        status: TopUpIntentStatus.PENDING,
+        providerReference: Not(IsNull()),
+        createdAt: LessThan(new Date(now - options.olderThanMinutes * 60_000)),
+      },
+      order: { createdAt: 'ASC' },
+      take: options.limit ?? 100,
+    });
+
+    const summary: ReconcileSummary = {
+      checked: intents.length,
+      settled: 0,
+      failed: 0,
+      expired: 0,
+      stillPending: 0,
+      errors: 0,
+    };
+
+    for (const intent of intents) {
+      try {
+        await this.settle(intent);
+        summary.settled += 1;
+      } catch (err) {
+        const code = (err as DomainException).getResponse?.() as
+          | { code?: string }
+          | undefined;
+        if (code?.code === ErrorCode.PAYMENT_PENDING) {
+          if (intent.createdAt.getTime() < now - options.expireAfterMinutes * 60_000) {
+            // Conditional, so a concurrent successful settle is never overwritten.
+            const result = await this.intentRepository.update(
+              { id: intent.id, status: TopUpIntentStatus.PENDING },
+              {
+                status: TopUpIntentStatus.EXPIRED,
+                failureReason: 'Not paid before the reconciliation deadline',
+              },
+            );
+            if (result.affected) summary.expired += 1;
+          } else {
+            summary.stillPending += 1;
+          }
+        } else if (intent.status === TopUpIntentStatus.FAILED) {
+          summary.failed += 1;
+        } else {
+          summary.errors += 1;
+          this.logger.warn('Top-up reconciliation error', TopUpService.name, {
+            intentId: intent.id,
+            error: (err as Error).message,
+          });
+        }
+      }
+    }
+
+    this.logger.log('Top-up reconciliation finished', TopUpService.name, {
+      ...summary,
+    });
+    return summary;
   }
 }

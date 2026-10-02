@@ -12,9 +12,8 @@ export class TopUpWalletDto {
   amount: number;
 
   @ApiProperty({
-    description: 'Payment provider to use for the top-up',
     enum: PaymentProvider,
-    default: PaymentProvider.MOCK,
+    description: 'Defaults to the configured PAYMENT_PROVIDER',
     required: false,
   })
   @IsOptional()

@@ -45,6 +45,12 @@ export enum ErrorCode {
   PAYMENT_NOT_FOUND = 'PAYMENT_NOT_FOUND',
   /** The payment exists but belongs to a different passenger/driver. */
   PAYMENT_NOT_OWNED = 'PAYMENT_NOT_OWNED',
+  /** The provider has not finished the payment yet; nothing was credited. */
+  PAYMENT_PENDING = 'PAYMENT_PENDING',
+  /** The provider is unreachable, misconfigured, or does not offer this operation. */
+  PAYMENT_PROVIDER_UNAVAILABLE = 'PAYMENT_PROVIDER_UNAVAILABLE',
+  /** A provider callback failed signature, freshness, or merchant checks. */
+  WEBHOOK_SIGNATURE_INVALID = 'WEBHOOK_SIGNATURE_INVALID',
 
   // Fare / Tariff
   TARIFF_NOT_FOUND = 'TARIFF_NOT_FOUND',

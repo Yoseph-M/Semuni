@@ -7,6 +7,8 @@
  * deployment fails loudly instead of running.
  */
 
+import { TELEBIRR_REQUIRED_ENV } from '../payments/providers/telebirr/telebirr-payment-provider';
+
 const MIN_SECRET_LENGTH = 32;
 
 const PLACEHOLDER_MARKERS = ['change-me', 'change-in-production', 'dev-', 'ci-'];
@@ -63,8 +65,18 @@ export function validateEnv(
       errors.push('CORS_ORIGIN must list explicit origins in production, not *');
     }
 
-    if ((get('PAYMENT_PROVIDER') ?? 'MOCK').toUpperCase() === 'MOCK') {
+    const provider = (get('PAYMENT_PROVIDER') ?? 'MOCK').toUpperCase();
+    if (provider === 'MOCK') {
       errors.push('PAYMENT_PROVIDER=MOCK is not allowed in production');
+    }
+    if (provider === 'TELEBIRR') {
+      for (const key of TELEBIRR_REQUIRED_ENV) {
+        if (!get(key)) errors.push(`${key} is required when PAYMENT_PROVIDER=TELEBIRR`);
+      }
+      for (const key of ['TELEBIRR_BASE_URL', 'TELEBIRR_WEB_CHECKOUT_URL', 'TELEBIRR_NOTIFY_URL']) {
+        const url = get(key);
+        if (url && !url.startsWith('https://')) errors.push(`${key} must use https`);
+      }
     }
 
     if (get('DB_PASSWORD') === 'semuni_dev_password') {

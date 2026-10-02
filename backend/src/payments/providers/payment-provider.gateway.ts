@@ -26,6 +26,8 @@ export interface ProviderVerification {
   providerReference: string;
   /** Amount the provider confirms, in minor units (santim), when known. */
   amountMinor?: number;
+  /** The provider has not reached a final state; neither credit nor fail. */
+  pending?: boolean;
   failureReason?: string;
 }
 
@@ -66,4 +68,10 @@ export interface PaymentProviderGateway {
   initiateWithdrawal(
     params: InitiateWithdrawalParams,
   ): Promise<WithdrawalInitiation>;
+
+  /**
+   * Authenticates a provider callback (signature, freshness, merchant) and
+   * returns the provider reference it is about. Throws on anything invalid.
+   */
+  parseWebhook(body: unknown): string;
 }

@@ -14,6 +14,15 @@ const production = {
   DB_DATABASE: 'semuni',
   CORS_ORIGIN: 'https://app.semuni.et',
   PAYMENT_PROVIDER: 'TELEBIRR',
+  TELEBIRR_BASE_URL: 'https://superapp.ethiomobilemoney.et:38443/apiaccess/payment/gateway',
+  TELEBIRR_WEB_CHECKOUT_URL: 'https://superapp.ethiomobilemoney.et:38443/payment/web/paygate?',
+  TELEBIRR_FABRIC_APP_ID: 'fabric-app-id',
+  TELEBIRR_APP_SECRET: 'app-secret',
+  TELEBIRR_MERCHANT_APP_ID: '1227484825753601',
+  TELEBIRR_MERCHANT_CODE: '101011',
+  TELEBIRR_PRIVATE_KEY: 'private-key',
+  TELEBIRR_PUBLIC_KEY: 'public-key',
+  TELEBIRR_NOTIFY_URL: 'https://api.semuni.et/api/v1/wallet/webhooks/telebirr',
 };
 
 describe('validateEnv', () => {
@@ -48,6 +57,8 @@ describe('validateEnv', () => {
     ['identical secrets', { JWT_REFRESH_SECRET: strongAccess }, /must differ/],
     ['wildcard CORS', { CORS_ORIGIN: '*' }, /CORS_ORIGIN/],
     ['mock provider', { PAYMENT_PROVIDER: 'MOCK' }, /MOCK is not allowed/],
+    ['missing Telebirr credentials', { TELEBIRR_APP_SECRET: undefined }, /TELEBIRR_APP_SECRET is required/],
+    ['plain-http Telebirr notify URL', { TELEBIRR_NOTIFY_URL: 'http://api.semuni.et/hook' }, /TELEBIRR_NOTIFY_URL must use https/],
     ['missing provider (defaults to mock)', { PAYMENT_PROVIDER: undefined }, /MOCK/],
     ['missing DB password', { DB_PASSWORD: '' }, /DB_PASSWORD is required/],
     ['dev DB password', { DB_PASSWORD: 'semuni_dev_password' }, /development default/],

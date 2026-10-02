@@ -26,6 +26,7 @@
     "lint:ci": "eslint \"{src,test}/**/*.ts\" --max-warnings=0",
     "migration:check": "npm run typeorm -- migration:generate src/database/migrations/__schema_drift_check -d src/database/data-source.ts --check",
     "verify:financial": "ts-node -r tsconfig-paths/register src/database/verify-financial-integrity.ts",
+    "reconcile:top-ups": "ts-node -r tsconfig-paths/register src/wallets/reconcile-top-ups.ts",
     "prepare": "cd .. && husky backend/.husky || true"
   },
   "dependencies": {

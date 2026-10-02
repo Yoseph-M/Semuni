@@ -77,6 +77,7 @@ export class WalletsController {
         provider: intent.provider,
         status: intent.status,
         providerReference: intent.providerReference,
+        checkoutUrl: intent.checkoutUrl,
       },
       meta: {
         message:

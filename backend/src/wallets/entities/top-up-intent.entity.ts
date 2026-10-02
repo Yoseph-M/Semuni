@@ -59,6 +59,10 @@ export class TopUpIntent extends BaseEntity {
   @Column({ nullable: true })
   providerReference?: string;
 
+  /** Where the user approves the payment (Telebirr web checkout). */
+  @Column({ type: 'text', nullable: true })
+  checkoutUrl?: string;
+
   /** Client-supplied key; makes initiating the same top-up twice safe. */
   @Column()
   idempotencyKey: string;

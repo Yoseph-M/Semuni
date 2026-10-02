@@ -19,9 +19,11 @@ import { WithdrawalsService } from '../withdrawals/withdrawals.service';
 import { PassengersService } from '../passengers/passengers.service';
 import { FaresModule } from '../fares/fares.module';
 import { VehiclesModule } from '../vehicles/vehicles.module';
+import { PaymentProvidersModule } from '../payments/providers/payment-providers.module';
 
 @Module({
   imports: [
+    PaymentProvidersModule,
     TypeOrmModule.forFeature([
       Driver,
       Vehicle,

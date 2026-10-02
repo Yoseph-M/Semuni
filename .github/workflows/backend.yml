@@ -1,0 +1,89 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: semuni
+          POSTGRES_PASSWORD: semuni_ci_password
+          POSTGRES_DB: semuni
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U semuni"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: semuni
+      DB_PASSWORD: semuni_ci_password
+      DB_DATABASE: semuni
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-0123456789abcdef0123456789abcde
+      PAYMENT_PROVIDER: MOCK
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npx eslint "{src,test}/**/*.ts" --max-warnings=0
+
+      - name: Type check
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Unit tests
+        run: npm run test:cov
+
+      - name: Run migrations
+        run: npm run migration:run
+
+      - name: Entities match migrations (no schema drift)
+        run: npm run migration:check
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Financial integrity report
+        run: npm run verify:financial -- --strict
+
+      - name: Financial integrity probe
+        run: npm run verify:financial -- --probe --strict
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high

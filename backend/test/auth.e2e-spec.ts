@@ -20,6 +20,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { UserRole, UserStatus } from '../src/common/enums';
 import { ErrorCode } from '../src/common/error-codes';
+import { deleteLedgerEntries } from './utils/ledger-cleanup';
 
 describe('Auth (e2e)', () => {
   let app: NestFastifyApplication;
@@ -82,11 +83,10 @@ describe('Auth (e2e)', () => {
       // Every account this suite creates is prefixed `e2e_`, so cleanup is a
       // single prefix match (refresh_sessions cascade from users).
       const prefix = '^e2e_';
-      // ledger_entries.walletId is varchar while wallets.id is uuid, so the
-      // id must be cast before comparing.
-      await dataSource.query(
+      await deleteLedgerEntries(
+        dataSource,
         `DELETE FROM ledger_entries WHERE "walletId" IN (
-           SELECT w.id::text FROM wallets w JOIN users u ON u.id = w."userId"
+           SELECT w.id FROM wallets w JOIN users u ON u.id = w."userId"
            WHERE u.username ~ $1
          )`,
         [prefix],
@@ -181,6 +181,40 @@ describe('Auth (e2e)', () => {
       .post('/api/v1/auth/login')
       .send({ username: passengerUsername, password, role: UserRole.DRIVER })
       .expect(HttpStatus.UNAUTHORIZED);
+  });
+
+  it('POST /auth/login — locks the account after repeated failed passwords', async () => {
+    const username = `e2e_lockout_${suffix}`;
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ ...passengerRegister, username })
+      .expect(HttpStatus.CREATED);
+
+    const attempt = (pw: string) =>
+      request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ username, password: pw, role: UserRole.PASSENGER });
+
+    for (let i = 0; i < 5; i++) {
+      await attempt('wrong-password').expect(HttpStatus.UNAUTHORIZED);
+    }
+    // Locked: even the correct password is refused until the lock expires.
+    await attempt(password)
+      .expect(HttpStatus.TOO_MANY_REQUESTS)
+      .expect((res) => {
+        expect(res.body.code).toEqual(ErrorCode.AUTH_ACCOUNT_LOCKED);
+      });
+
+    await dataSource.query(
+      `UPDATE users SET "lockedUntil" = now() - interval '1 minute' WHERE username = $1`,
+      [username],
+    );
+    await attempt(password).expect(HttpStatus.OK);
+    const [row] = await dataSource.query(
+      `SELECT "failedLoginAttempts", "lockedUntil" FROM users WHERE username = $1`,
+      [username],
+    );
+    expect(row).toEqual({ failedLoginAttempts: 0, lockedUntil: null });
   });
 
   it('GET /auth/me — returns the current user without the password hash', async () => {

@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TariffsService } from './tariffs.service';
 import { CreateTariffDto } from './dto/tariff.dto';
@@ -15,7 +23,7 @@ export class TariffsController {
   constructor(private readonly tariffsService: TariffsService) {}
 
   @Get('active')
-  @ApiOperation({ summary: 'Get current active tariff' })
+  @ApiOperation({ summary: 'Get the tariff that currently prices new fares' })
   async getActiveTariff() {
     const tariff = await this.tariffsService.getActiveTariff();
     return { data: tariff, meta: {} };
@@ -29,11 +37,44 @@ export class TariffsController {
     return { data: tariffs, meta: {} };
   }
 
+  @Get(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get a tariff version by ID (Admin only)' })
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+    const tariff = await this.tariffsService.findById(id);
+    return { data: tariff, meta: {} };
+  }
+
   @Post()
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Create a new tariff (Admin only)' })
+  @ApiOperation({
+    summary:
+      'Create a tariff version in DRAFT (Admin only). Creating a tariff never makes it live.',
+  })
   async create(@Body() dto: CreateTariffDto) {
     const tariff = await this.tariffsService.create(dto);
-    return { data: tariff, meta: { message: 'Tariff created successfully' } };
+    return { data: tariff, meta: { message: 'Tariff created in DRAFT' } };
+  }
+
+  @Post(':id/activate')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary:
+      'Activate a DRAFT tariff (Admin only). Only one tariff may be active at a time.',
+  })
+  async activate(@Param('id', ParseUUIDPipe) id: string) {
+    const tariff = await this.tariffsService.activate(id);
+    return { data: tariff, meta: { message: 'Tariff activated' } };
+  }
+
+  @Post(':id/expire')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary:
+      'Expire a DRAFT or ACTIVE tariff (Admin only). Expiring frees the active slot.',
+  })
+  async expire(@Param('id', ParseUUIDPipe) id: string) {
+    const tariff = await this.tariffsService.expire(id);
+    return { data: tariff, meta: { message: 'Tariff expired' } };
   }
 }

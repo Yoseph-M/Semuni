@@ -1,3 +1,30 @@
+/// A stop on a route, as identified by the backend.
+///
+/// [id] is the authoritative `RouteStop` UUID: it is what fare quotes and trip
+/// creation accept. [name] is display text only and is never an identifier.
+class RouteStop {
+  const RouteStop({
+    required this.id,
+    required this.name,
+    required this.sequence,
+    this.latitude,
+    this.longitude,
+  });
+
+  final String id;
+  final String name;
+
+  /// 1-based position along the route; the backend rejects journeys whose
+  /// origin is not before the destination.
+  final int sequence;
+
+  final double? latitude;
+  final double? longitude;
+
+  @override
+  String toString() => 'RouteStop($sequence. $name, id: $id)';
+}
+
 /// Passenger-facing taxi route for discovery and booking.
 ///
 /// Represents a public minibus / taxi route a passenger can search for,
@@ -21,6 +48,7 @@ class PassengerRoute {
     this.operatingHours,
     this.distanceKm,
     this.instructions,
+    this.stops = const [],
   });
 
   final String id;
@@ -63,6 +91,12 @@ class PassengerRoute {
 
   /// Short passenger-facing boarding/travel instructions.
   final String? instructions;
+
+  /// Ordered stops with backend UUIDs, when the route came from the API.
+  ///
+  /// The fare and trip flows need these identifiers; names alone are display
+  /// only. Empty for routes that were assembled without stop data.
+  final List<RouteStop> stops;
 
   @override
   String toString() =>

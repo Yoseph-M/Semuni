@@ -3,7 +3,9 @@ import { BaseEntity } from '../../common/entities/base.entity';
 import { PaymentRecordStatus, Currency, PaymentProvider } from '../../common/enums';
 
 @Entity('payments')
-@Index('UQ_payments_trip', ['tripId'], { unique: true })
+// An idempotency key is only meaningful to the user who generated it, so
+// uniqueness is scoped to the payer. A key must never be treated as a global
+// namespace: two different passengers are allowed to pick the same string.
 @Index('UQ_payments_passenger_idempotency', ['passengerId', 'idempotencyKey'], {
   unique: true,
 })

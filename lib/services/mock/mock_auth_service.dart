@@ -1,3 +1,5 @@
+import '../../models/driver.dart';
+import '../../models/passenger.dart';
 import '../api/auth_service.dart';
 
 // The interface and its result type live with the production implementation;
@@ -33,6 +35,12 @@ class MockAuthService implements AuthService {
       'Mock auth disabled. Start the backend and use ApiAuthService.',
     );
   }
+
+  @override
+  Future<Passenger?> refreshPassenger() async => null;
+
+  @override
+  Future<Driver?> refreshDriver() async => null;
 
   @override
   Future<void> logout() async {}

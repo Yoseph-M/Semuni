@@ -76,6 +76,13 @@ abstract interface class AuthService {
     required String password,
   });
 
+  /// Re-reads the signed-in passenger profile, including the authoritative
+  /// wallet balance. Returns null when the profile cannot be loaded.
+  Future<Passenger?> refreshPassenger();
+
+  /// Re-reads the signed-in driver profile, including the wallet balance.
+  Future<Driver?> refreshDriver();
+
   /// Ends the session locally and, when possible, revokes it server-side.
   Future<void> logout();
 }

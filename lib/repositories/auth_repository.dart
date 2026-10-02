@@ -79,6 +79,28 @@ class AuthRepository {
     return result;
   }
 
+  /// Re-reads the signed-in passenger from the backend.
+  ///
+  /// This — not local arithmetic — is how a balance changes after a payment or
+  /// a top-up: the server is the only writer. Returns the fresh passenger, or
+  /// null when it could not be loaded (the previous profile is kept).
+  Future<Passenger?> refreshPassengerProfile() async {
+    final passenger = await _authService.refreshPassenger();
+    if (passenger != null) {
+      _currentPassenger = passenger;
+    }
+    return passenger;
+  }
+
+  /// Re-reads the signed-in driver from the backend.
+  Future<Driver?> refreshDriverProfile() async {
+    final driver = await _authService.refreshDriver();
+    if (driver != null) {
+      _currentDriver = driver;
+    }
+    return driver;
+  }
+
   /// Logs out the current user and clears state.
   Future<void> logout() async {
     await _authService.logout();
@@ -86,58 +108,8 @@ class AuthRepository {
     _currentDriver = null;
   }
 
-  /// Default mock passenger for testing or direct navigation without prior login.
-  static const Passenger defaultMockPassenger = Passenger(
-    id: 'p_001',
-    name: 'Yosef Mekonnen',
-    username: 'yosef',
-    phone: '+251911234567',
-    walletBalance: 1250.00,
-  );
-
-  /// Available wallet balance for the authenticated passenger (or default mock passenger).
-  double get passengerWalletBalance =>
-      _currentPassenger?.walletBalance ?? defaultMockPassenger.walletBalance;
-
   /// Sets the currently active passenger (useful for tests or mock setup).
   void setCurrentPassenger(Passenger? passenger) {
     _currentPassenger = passenger;
-  }
-
-  /// Deducts [amount] from the current passenger's wallet balance if sufficient.
-  ///
-  /// Returns `true` if deduction succeeded, or `false` if balance was insufficient.
-  ///
-  /// DEPRECATED for production use: a wallet balance is owned by the backend and
-  /// read with `GET /wallet`. This exists only so the still-mock wallet service
-  /// keeps working, and is deleted with it — no real API path may mutate a
-  /// balance locally and call the money spent.
-  @Deprecated(
-    'Balance changes belong to the backend (GET /wallet). Mock-only path.',
-  )
-  bool deductPassengerBalance(double amount) {
-    final activePassenger = _currentPassenger ?? defaultMockPassenger;
-    if (activePassenger.walletBalance < amount) {
-      return false;
-    }
-    _currentPassenger = activePassenger.copyWith(
-      walletBalance: activePassenger.walletBalance - amount,
-    );
-    return true;
-  }
-
-  /// Adds [amount] to the current passenger's wallet balance.
-  ///
-  /// DEPRECATED for production use — see [deductPassengerBalance]. A top-up is
-  /// only real once the backend confirms the provider payment and credits the
-  /// wallet itself.
-  @Deprecated(
-    'Balance changes belong to the backend (top-up intent → confirm → GET /wallet).',
-  )
-  void addPassengerBalance(double amount) {
-    final activePassenger = _currentPassenger ?? defaultMockPassenger;
-    _currentPassenger = activePassenger.copyWith(
-      walletBalance: activePassenger.walletBalance + amount,
-    );
   }
 }

@@ -1,4 +1,16 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsArray, ValidateNested, IsDateString, IsInt, Min } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsArray,
+  ArrayMinSize,
+  ValidateNested,
+  IsDateString,
+  IsInt,
+  Min,
+  Matches,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { Currency, VehicleType } from '../../common/enums';
@@ -33,7 +45,20 @@ export class CreateTariffRuleDto {
 }
 
 export class CreateTariffDto {
-  @ApiProperty()
+  @ApiProperty({
+    description:
+      'Immutable, unique tariff version identifier, e.g. TARIFF-2026-001. Versions are never reused.',
+    example: 'TARIFF-2026-001',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[A-Z0-9][A-Z0-9._-]*$/, {
+    message:
+      'version must be an uppercase identifier such as TARIFF-2026-001 (letters, digits, dot, dash and underscore only)',
+  })
+  version: string;
+
+  @ApiProperty({ description: 'Human-readable label; not an identifier' })
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -52,8 +77,9 @@ export class CreateTariffDto {
   @IsOptional()
   currency?: Currency;
 
-  @ApiProperty({ type: [CreateTariffRuleDto] })
+  @ApiProperty({ type: [CreateTariffRuleDto], minItems: 1 })
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => CreateTariffRuleDto)
   rules: CreateTariffRuleDto[];

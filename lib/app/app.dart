@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/auth/auth_session.dart';
+import '../core/network/api_client.dart';
 import '../navigation/app_router.dart';
 import '../navigation/app_routes.dart';
 import '../repositories/auth_repository.dart';
@@ -9,14 +11,6 @@ import '../repositories/passenger_route_repository.dart';
 import '../repositories/trip_repository.dart';
 import 'theme/app_theme.dart';
 
-/// SMUNI application root widget.
-///
-/// Wires together:
-/// - The SMUNI Material 3 theme
-/// - The centralized app router
-/// - The repositories (dependency injection)
-///
-/// Does NOT contain any business logic or UI components directly.
 class SmuniApp extends StatefulWidget {
   const SmuniApp({super.key});
 
@@ -25,9 +19,8 @@ class SmuniApp extends StatefulWidget {
 }
 
 class _SmuniAppState extends State<SmuniApp> {
-  // Instantiated here so they live for the lifetime of the application.
-  // When a proper DI container or state management package is introduced
-  // (e.g., Riverpod), this will be replaced by a provider/container setup.
+  late final AuthSession _session;
+  late final ApiClient _apiClient;
   late final AuthRepository _authRepository;
   late final TripRepository _tripRepository;
   late final DriverDashboardRepository _driverDashboardRepository;
@@ -38,11 +31,18 @@ class _SmuniAppState extends State<SmuniApp> {
   @override
   void initState() {
     super.initState();
-    _authRepository = AuthRepository();
-    _tripRepository = TripRepository();
+
+    _session = AuthSession();
+    _apiClient = ApiClient(session: _session);
+    _authRepository = AuthRepository(session: _session);
+
+    _tripRepository = TripRepository(
+      tripService: null,
+    );
     _driverDashboardRepository = DriverDashboardRepository();
     _driverRouteRepository = DriverRouteRepository();
     _passengerRouteRepository = PassengerRouteRepository();
+
     _router = AppRouter(
       authRepository: _authRepository,
       tripRepository: _tripRepository,

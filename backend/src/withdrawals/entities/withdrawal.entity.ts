@@ -1,4 +1,5 @@
-import { Entity, Column, Index } from 'typeorm';
+import { Entity, Column, Index, Check, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 import { BaseEntity } from '../../common/entities/base.entity';
 import {
   WithdrawalStatus,
@@ -8,15 +9,20 @@ import {
 } from '../../common/enums';
 
 @Entity('withdrawals')
+@Check('CHK_withdrawal_amount_positive', '"amount" > 0')
 // Idempotency keys belong to the driver who sent them, so uniqueness is scoped
 // to the owner rather than global.
 @Index('UQ_withdrawals_user_idempotency', ['userId', 'idempotencyKey'], {
   unique: true,
 })
 export class Withdrawal extends BaseEntity {
-  @Column()
+  @Column({ type: 'uuid' })
   @Index()
   userId: string;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'userId', foreignKeyConstraintName: 'FK_withdrawals_userId' })
+  user?: User;
 
   @Column({ type: 'int' })
   amount: number;

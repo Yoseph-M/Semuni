@@ -1,12 +1,28 @@
 import '../../models/passenger_wallet_transaction.dart';
+import '../../models/top_up_intent.dart';
 
 abstract class PassengerWalletService {
+  /// Current wallet balance in ETB, read from the backend.
+  Future<double> getBalance(String passengerId);
+
   Future<List<PassengerWalletTransaction>> getTransactionHistory(
     String passengerId,
   );
+
+  /// Creates a top-up intent. The balance does not change here.
+  Future<TopUpIntentView> initiateTopUp({
+    required double amountEtb,
+    required String idempotencyKey,
+    String? provider,
+  });
+
+  /// Confirms the top-up; the backend verifies the provider and credits once.
+  Future<TopUpConfirmation> confirmTopUp(String intentId);
+
+  /// Mock-era local credit. Production throws — the wallet is backend-owned.
   Future<PassengerWalletTransaction> topUp(String passengerId, double amount);
 
-  /// Records a taxi fare payment. Throws if [amount] <= 0.
+  /// Mock-era local debit. Production throws — payments go through `/payments/trip`.
   Future<PassengerWalletTransaction> payTaxiFare(
     String passengerId, {
     required double amount,
@@ -18,9 +34,46 @@ abstract class PassengerWalletService {
 class MockPassengerWalletService implements PassengerWalletService {
   MockPassengerWalletService({
     this.simulatedDelay = const Duration(milliseconds: 800),
+    this.balanceEtb = 1250.00,
   });
 
   final Duration simulatedDelay;
+
+  /// Balance the mock reports and mutates locally. Tests only.
+  double balanceEtb;
+
+  @override
+  Future<double> getBalance(String passengerId) async {
+    await Future.delayed(simulatedDelay);
+    return balanceEtb;
+  }
+
+  @override
+  Future<TopUpIntentView> initiateTopUp({
+    required double amountEtb,
+    required String idempotencyKey,
+    String? provider,
+  }) async {
+    await Future.delayed(simulatedDelay);
+    return TopUpIntentView(
+      intentId: 'mock-intent-$idempotencyKey',
+      amountMinor: (amountEtb * 100).round(),
+      currency: 'ETB',
+      provider: provider ?? 'MOCK',
+      status: 'PENDING',
+    );
+  }
+
+  @override
+  Future<TopUpConfirmation> confirmTopUp(String intentId) async {
+    await Future.delayed(simulatedDelay);
+    return TopUpConfirmation(
+      intentId: intentId,
+      status: 'SUCCESS',
+      balanceMinor: (balanceEtb * 100).round(),
+      currency: 'ETB',
+    );
+  }
 
   final List<PassengerWalletTransaction> _transactions = [
     PassengerWalletTransaction(

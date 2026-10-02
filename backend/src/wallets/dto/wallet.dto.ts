@@ -1,10 +1,10 @@
-import { IsNumber, IsNotEmpty, IsPositive, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsPositive, IsEnum, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { PaymentProvider } from '../../common/enums';
 
 export class TopUpWalletDto {
   @ApiProperty({ description: 'Amount to top-up in minor units (santim)', example: 100000 })
-  @IsNumber()
+  @IsInt()
   @IsPositive()
   @IsNotEmpty()
   amount: number;

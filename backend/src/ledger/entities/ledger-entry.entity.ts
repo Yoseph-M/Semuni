@@ -3,6 +3,9 @@ import { BaseEntity } from '../../common/entities/base.entity';
 import { LedgerDirection, LedgerEntryType, Currency } from '../../common/enums';
 
 @Entity('ledger_entries')
+@Index('UQ_ledger_transaction_wallet_entry_type', ['transactionId', 'walletId', 'entryType'], {
+  unique: true,
+})
 export class LedgerEntry extends BaseEntity {
   @Column()
   @Index()

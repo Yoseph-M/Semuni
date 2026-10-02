@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index, Unique, Check } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { User } from '../../users/entities/user.entity';
 import {
@@ -27,15 +27,15 @@ import {
 // at most one top-up intent. This is what makes a replayed provider callback
 // unable to settle (and credit) the same payment twice. (Constraint name matches
 // the one created with the table, so entity and database stay aligned.)
-@Index('UQ_top_up_intents_providerReference', ['providerReference'], {
-  unique: true,
-})
+@Unique('UQ_top_up_intents_providerReference', ['providerReference'])
+@Check('CHK_top_up_amount_positive', '"amountMinor" > 0')
 export class TopUpIntent extends BaseEntity {
   @ManyToOne(() => User)
-  @JoinColumn({ name: 'userId' })
+  @JoinColumn({ name: 'userId', foreignKeyConstraintName: 'FK_top_up_intents_userId' })
   user: User;
 
   @Column({ type: 'uuid' })
+  @Index('IDX_top_up_intents_userId')
   userId: string;
 
   /** Amount in minor units (santim). */
@@ -58,6 +58,10 @@ export class TopUpIntent extends BaseEntity {
   /** Provider-side handle used to verify or reconcile the top-up. */
   @Column({ nullable: true })
   providerReference?: string;
+
+  /** Where the user approves the payment (Telebirr web checkout). */
+  @Column({ type: 'text', nullable: true })
+  checkoutUrl?: string;
 
   /** Client-supplied key; makes initiating the same top-up twice safe. */
   @Column()

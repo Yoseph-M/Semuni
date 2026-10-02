@@ -1,10 +1,14 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/utils/app_formatters.dart';
+import '../../../models/driver_withdrawal.dart';
 import '../../../repositories/auth_repository.dart';
 import '../../../repositories/driver_dashboard_repository.dart';
 
@@ -25,15 +29,28 @@ extension _WithdrawMethodX on _WithdrawMethod {
       _WithdrawMethod.cbe => Icons.account_balance_rounded,
     };
   }
+
+  /// The destination the backend records; there is no free-text "method".
+  WithdrawalDestinationType get destinationType => switch (this) {
+    _WithdrawMethod.telebirr => WithdrawalDestinationType.mobileMoney,
+    _WithdrawMethod.cbe => WithdrawalDestinationType.bank,
+  };
+
+  String get destinationLabel => switch (this) {
+    _WithdrawMethod.telebirr => 'Telebirr',
+    _WithdrawMethod.cbe => 'Commercial Bank of Ethiopia',
+  };
 }
 
 /// Three-phase driver withdrawal screen.
 ///
-/// Phase 1 — Form: Enter amount, select method, validate.
-/// Phase 2 — Confirm: Review summary before submitting.
-/// Phase 3 — Success: Confirmation of submitted withdrawal.
+/// Phase 1 — Form: enter amount and destination, validate against the balance.
+/// Phase 2 — Confirm: review, then submit to the backend.
+/// Phase 3 — Submitted: the request is PENDING and settles asynchronously.
 ///
-/// Architecture: UI → [DriverDashboardRepository] → MockDriverDashboardService
+/// The destination is explicit (bank account or mobile money) and each submit
+/// carries one idempotency key, so a retry cannot create a second withdrawal.
+/// The balance shown is the server's; a withdrawal never edits it locally.
 class DriverWithdrawScreen extends StatefulWidget {
   const DriverWithdrawScreen({
     super.key,
@@ -56,6 +73,7 @@ class _DriverWithdrawScreenState extends State<DriverWithdrawScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _amountFocus = FocusNode();
+  final _accountController = TextEditingController();
 
   _WithdrawMethod _selectedMethod = _WithdrawMethod.telebirr;
   _WithdrawPhase _phase = _WithdrawPhase.form;
@@ -63,6 +81,13 @@ class _DriverWithdrawScreenState extends State<DriverWithdrawScreen> {
 
   /// Parsed amount from the text field — null until confirmed valid.
   double? _confirmedAmount;
+
+  /// One key per logical withdrawal request, generated when the driver moves to
+  /// the confirmation step and reused for retries of that same request.
+  String? _idempotencyKey;
+
+  /// The backend's answer, shown on the success phase.
+  DriverWithdrawal? _submitted;
 
   @override
   void initState() {
@@ -74,6 +99,7 @@ class _DriverWithdrawScreenState extends State<DriverWithdrawScreen> {
   void dispose() {
     _amountController.dispose();
     _amountFocus.dispose();
+    _accountController.dispose();
     super.dispose();
   }
 
@@ -94,33 +120,73 @@ class _DriverWithdrawScreenState extends State<DriverWithdrawScreen> {
     return null;
   }
 
+  /// Bank transfers need a real account number; mobile money uses the phone
+  /// number on the driver's profile.
+  String? _validateAccount(String? value) {
+    if (_selectedMethod != _WithdrawMethod.cbe) return null;
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) return 'Enter the destination account number.';
+    if (trimmed.replaceAll(RegExp(r'\D'), '').length < 8) {
+      return 'Enter a valid account number.';
+    }
+    return null;
+  }
+
   void _onContinue() {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
     final parsed = double.tryParse(_amountController.text.trim())!;
     setState(() {
       _confirmedAmount = parsed;
+      // A new logical request: a fresh key, reused for every retry of it.
+      _idempotencyKey = _newIdempotencyKey();
       _phase = _WithdrawPhase.confirm;
     });
   }
 
+  static String _newIdempotencyKey() {
+    final stamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final entropy = Random().nextInt(0x7fffffff).toRadixString(36);
+    return 'flutter-withdraw-$stamp-$entropy';
+  }
+
   Future<void> _onConfirm() async {
     final driver = widget.authRepository.currentDriver;
-    if (driver == null || _confirmedAmount == null) return;
+    final key = _idempotencyKey;
+    if (driver == null || _confirmedAmount == null || key == null) return;
 
     setState(() => _isSubmitting = true);
 
     try {
-      await _repo.submitWithdrawal(
-        driverId: driver.id,
-        amount: _confirmedAmount!,
-        method: _selectedMethod.label,
+      final withdrawal = await _repo.requestWithdrawal(
+        amountEtb: _confirmedAmount!,
+        destinationType: _selectedMethod.destinationType,
+        destination: _selectedMethod.destinationLabel,
+        destinationAccount: _selectedMethod == _WithdrawMethod.cbe
+            ? _accountController.text.trim()
+            : driver.phone,
+        idempotencyKey: key,
       );
+
+      // The wallet only changes when the backend says it did; re-read it.
+      await widget.authRepository.refreshDriverProfile();
+
       if (mounted) {
         setState(() {
+          _submitted = withdrawal;
           _phase = _WithdrawPhase.success;
           _isSubmitting = false;
         });
+      }
+    } on ApiException catch (error) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.userMessage),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     } catch (_) {
       if (mounted) {
@@ -295,6 +361,41 @@ class _DriverWithdrawScreenState extends State<DriverWithdrawScreen> {
               selectedMethod: _selectedMethod,
               onMethodChanged: (m) => setState(() => _selectedMethod = m),
             ),
+
+            // Destination account (bank transfers only)
+            if (_selectedMethod == _WithdrawMethod.cbe) ...[
+              const SizedBox(height: AppConstants.spacingXl),
+              Text(
+                'Destination Account Number',
+                style: AppTextStyles.labelLarge.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: AppConstants.spacingSm),
+              TextFormField(
+                key: const Key('withdraw_account_field'),
+                controller: _accountController,
+                keyboardType: TextInputType.number,
+                validator: _validateAccount,
+                style: AppTextStyles.bodyLarge.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'e.g. 1000123456789',
+                  filled: true,
+                  fillColor: AppColors.inputFill,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppConstants.spacingMd,
+                    vertical: AppConstants.spacingMd,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                    borderSide: const BorderSide(color: AppColors.inputBorder),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: AppConstants.spacingXxl),
 
             // Continue button
@@ -391,13 +492,22 @@ class _DriverWithdrawScreenState extends State<DriverWithdrawScreen> {
                   endIndent: 16,
                 ),
                 _SummaryRow(
-                  label: 'Method',
-                  value: _selectedMethod.label,
+                  label: 'Destination',
+                  value: _selectedMethod.destinationLabel,
                   trailing: Icon(
                     _selectedMethod.icon,
                     size: AppConstants.iconMd,
                     color: AppColors.textSecondary,
                   ),
+                ),
+                if (_selectedMethod == _WithdrawMethod.cbe)
+                  _SummaryRow(
+                    label: 'Account',
+                    value: _maskAccount(_accountController.text.trim()),
+                  ),
+                _SummaryRow(
+                  label: 'Status',
+                  value: 'Pending review',
                   isLast: true,
                 ),
               ],
@@ -449,8 +559,14 @@ class _DriverWithdrawScreenState extends State<DriverWithdrawScreen> {
 
   // ─── Phase 3: Success ─────────────────────────────────────────────────────
 
+  static String _maskAccount(String account) {
+    if (account.length <= 4) return account;
+    return '•••• ${account.substring(account.length - 4)}';
+  }
+
   Widget _buildSuccess() {
     final amount = _confirmedAmount!;
+    final submitted = _submitted;
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppConstants.screenHorizontalPadding,
@@ -486,6 +602,16 @@ class _DriverWithdrawScreenState extends State<DriverWithdrawScreen> {
             ),
             textAlign: TextAlign.center,
           ),
+          if (submitted != null) ...[
+            const SizedBox(height: AppConstants.spacingXs),
+            Text(
+              'Status: ${submitted.status}',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
           const SizedBox(height: AppConstants.spacingSm),
 
           Text(
@@ -499,9 +625,10 @@ class _DriverWithdrawScreenState extends State<DriverWithdrawScreen> {
           const SizedBox(height: AppConstants.spacingMd),
 
           Text(
-            'Your withdrawal request has been submitted via '
-            '${_selectedMethod.label}. '
-            'Funds are typically processed within 1–3 business days.',
+            'Your withdrawal request has been submitted to '
+            '${_selectedMethod.destinationLabel}. '
+            'It is pending and will be settled by Semuni; funds are typically '
+            'processed within 1–3 business days.',
             style: AppTextStyles.bodyMedium.copyWith(
               color: AppColors.textSecondary,
               height: 1.6,

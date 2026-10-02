@@ -1,3 +1,4 @@
+import '../../models/fare_quote.dart';
 import '../../models/passenger_route.dart';
 
 /// Abstract service contract for passenger route discovery.
@@ -23,6 +24,17 @@ abstract interface class PassengerRouteService {
   Future<List<PassengerRoute>> searchRoutes({
     required String fromQuery,
     required String toQuery,
+  });
+
+  /// Asks the backend for the official fare of a specific segment.
+  ///
+  /// This is the only source of a payable price: the client must never derive
+  /// one from [PassengerRoute.fare] or from its own arithmetic.
+  Future<FareQuote> quoteFare({
+    required String routeId,
+    required String originStopId,
+    required String destinationStopId,
+    String? vehicleType,
   });
 }
 
@@ -323,6 +335,33 @@ class MockPassengerRouteService implements PassengerRouteService {
   Future<List<TaxiStation>> getStations() async {
     await Future<void>.delayed(simulatedDelay);
     return List.unmodifiable(_stations);
+  }
+
+  @override
+  Future<FareQuote> quoteFare({
+    required String routeId,
+    required String originStopId,
+    required String destinationStopId,
+    String? vehicleType,
+  }) async {
+    await Future<void>.delayed(simulatedDelay);
+    final matches = _routes.where((r) => r.id == routeId);
+    if (matches.isEmpty) {
+      throw StateError('Unknown route $routeId');
+    }
+    final route = matches.first;
+    // The mock has only a corridor fare; the segment is echoed so callers can
+    // verify the identifiers they sent were preserved.
+    return FareQuote(
+      fareMinor: (route.fare * 100).round(),
+      currency: 'ETB',
+      routeId: routeId,
+      originStopId: originStopId,
+      destinationStopId: destinationStopId,
+      routeName: route.name,
+      originStopName: route.startLabel,
+      destinationStopName: route.endLabel,
+    );
   }
 
   @override

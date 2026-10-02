@@ -11,6 +11,9 @@ class Trip {
     required this.driverName,
     required this.status,
     this.routeCode,
+    this.fareMinor = 0,
+    this.paymentStatus = 'UNPAID',
+    this.receiptNumber,
   });
 
   final String id;
@@ -21,6 +24,22 @@ class Trip {
   final String driverName;
   final TripStatus status;
   final String? routeCode;
+
+  /// Authoritative fare in minor units (santim), as stored on the backend.
+  /// Zero when the trip did not come from the API (mock-era records).
+  final int fareMinor;
+
+  /// Raw backend payment status (`UNPAID`, `PAID`, …). The server owns this;
+  /// the client only reflects it.
+  final String paymentStatus;
+
+  /// Receipt number once the trip has been paid.
+  final String? receiptNumber;
+
+  /// The fare to show, preferring the authoritative minor-unit value.
+  double get fareEtb => fareMinor > 0 ? fareMinor / 100 : amountPaid;
+
+  bool get isPaid => paymentStatus.toUpperCase() == 'PAID';
 
   @override
   String toString() =>

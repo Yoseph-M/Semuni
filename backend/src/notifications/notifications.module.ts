@@ -1,8 +1,15 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationsService } from './notifications.service';
+import { NotificationOutbox } from './entities/notification-outbox.entity';
+import { LogNotificationSender, NOTIFICATION_SENDER } from './notification-sender';
 
 @Module({
-  providers: [NotificationsService],
+  imports: [TypeOrmModule.forFeature([NotificationOutbox])],
+  providers: [
+    NotificationsService,
+    { provide: NOTIFICATION_SENDER, useClass: LogNotificationSender },
+  ],
   exports: [NotificationsService],
 })
 export class NotificationsModule {}

@@ -15,6 +15,7 @@ import { Driver } from '../drivers/entities/driver.entity';
 import { User } from '../users/entities/user.entity';
 import { DomainException } from '../common/domain.exception';
 import { ErrorCode } from '../common/error-codes';
+import { PaymentProviderRegistry } from '../payments/providers/payment-provider.registry';
 
 @Injectable()
 export class WithdrawalsService {
@@ -23,6 +24,7 @@ export class WithdrawalsService {
     private readonly withdrawalRepository: Repository<Withdrawal>,
     private readonly walletsService: WalletsService,
     private readonly dataSource: DataSource,
+    private readonly providerRegistry: PaymentProviderRegistry,
   ) {}
 
   /**
@@ -83,7 +85,7 @@ export class WithdrawalsService {
       (existing.destination ?? null) === (dto.destination ?? null) &&
       (existing.destinationAccount ?? null) ===
         (dto.destinationAccount ?? null) &&
-      existing.provider === (dto.provider ?? PaymentProvider.MOCK);
+      existing.provider === this.providerFor(dto);
 
     if (!samePayload) {
       throw new DomainException(
@@ -96,11 +98,18 @@ export class WithdrawalsService {
     return existing;
   }
 
+  private providerFor(dto: RequestWithdrawalDto): PaymentProvider {
+    return dto.provider ?? this.providerRegistry.defaultProvider();
+  }
+
   async requestWithdrawal(
     driverUserId: string,
     dto: RequestWithdrawalDto,
   ): Promise<Withdrawal> {
     await this.assertOperationalDriver(driverUserId);
+    const provider = this.providerFor(dto);
+    // Resolve before any debit: an unavailable provider must not touch money.
+    const gateway = this.providerRegistry.get(provider);
 
     // Keys are scoped to the requesting driver: one driver's key is invisible to
     // every other driver.
@@ -121,7 +130,7 @@ export class WithdrawalsService {
         destinationType: dto.destinationType,
         destination: dto.destination,
         destinationAccount: dto.destinationAccount,
-        provider: dto.provider ?? PaymentProvider.MOCK,
+        provider,
         idempotencyKey: dto.idempotencyKey,
         status: WithdrawalStatus.PENDING,
       });
@@ -141,14 +150,29 @@ export class WithdrawalsService {
           insufficientBalanceCode: ErrorCode.WITHDRAWAL_INSUFFICIENT_BALANCE,
         });
 
+        // Inside the transaction: if the provider refuses, the debit rolls back.
+        const initiation = await gateway.initiateWithdrawal({
+          userId: driverUserId,
+          amountMinor: saved.amount,
+          currency: saved.currency,
+          destinationType: saved.destinationType,
+          destination: saved.destination,
+          destinationAccount: saved.destinationAccount,
+          idempotencyKey: dto.idempotencyKey,
+        });
+
+        saved.externalReference = initiation.providerReference;
         saved.status = WithdrawalStatus.PROCESSING;
         await manager.save(saved);
 
-        setTimeout(async () => {
-          try {
-            await this.mockComplete(saved.id);
-          } catch (_) {}
-        }, 100);
+        // Only the mock settles itself; real providers settle asynchronously.
+        if (provider === PaymentProvider.MOCK) {
+          setTimeout(async () => {
+            try {
+              await this.mockComplete(saved.id);
+            } catch (_) {}
+          }, 100);
+        }
 
         return saved;
       } catch (err) {
@@ -178,7 +202,6 @@ export class WithdrawalsService {
       });
       if (!w) return;
       w.status = WithdrawalStatus.SUCCESS;
-      w.externalReference = `MOCK-SETTLE-${w.id}`;
       w.completedAt = new Date();
       await manager.save(w);
     });

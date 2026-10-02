@@ -60,6 +60,11 @@ class ApiClient {
   final String _baseUrl;
   final Duration _timeout;
 
+  /// One in-flight refresh at a time. Several requests commonly expire together
+  /// (a dashboard fires three calls at once); without this they would each spend
+  /// the single-use refresh token, and all but the first would fail.
+  Future<bool>? _refreshInFlight;
+
   static int _requestCounter = 0;
 
   Uri _uri(String path, Map<String, dynamic>? query) {
@@ -106,6 +111,7 @@ class ApiClient {
     bool authenticated = true,
   }) => _send('GET', path, query: query, authenticated: authenticated);
 
+
   Future<ApiResult> post(
     String path, {
     Object? body,
@@ -132,15 +138,14 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? query,
     bool authenticated = true,
-  }) => _send('DELETE', path, query: query, authenticated: authenticated);
-
-  Future<ApiResult> _send(
+  }) => _send('DELETE', path, query: query, authenticated: authenticated);  Future<ApiResult> _send(
     String method,
-    String path, {
+    String path,{
     Object? body,
     Map<String, dynamic>? query,
     String? idempotencyKey,
     bool authenticated = true,
+    bool retryOnUnauthorized = true,
   }) async {
     final uri = _uri(path, query);
     final hasBody = body != null;
@@ -177,14 +182,91 @@ class ApiClient {
 
     final failure = _failureFrom(response.statusCode, decoded);
 
-    // A rejected token is a session problem, not a screen problem: clear it and
-    // let the app route back to sign-in. The exception still propagates so the
-    // caller can stop whatever it was doing.
-    if (failure.isAuthExpired) {
-      await session.expire();
+    // An expired access token is not a dead session: when a refresh token is
+    // held, exchange it and replay the request exactly once. Only the refresh
+    // call itself is exempt, so a rejected refresh cannot recurse.
+    if (authenticated && failure.isAuthExpired && retryOnUnauthorized) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        return _send(
+          method,
+          path,
+          body: body,
+          query: query,
+          idempotencyKey: idempotencyKey,
+          authenticated: authenticated,
+          retryOnUnauthorized: false,
+        );
+      }
+    }
+
+    // A dead session must not look alive: clear it and let the app route back
+    // to sign-in. When a refresh was attempted, the outcome was already decided
+    // inside [_performRefresh] (cleared on rejection, kept on a transient
+    // failure). The exception always propagates so the caller can stop.
+    if (authenticated && failure.isAuthExpired) {
+      if (!retryOnUnauthorized || !session.canRefresh) {
+        await session.expire();
+      }
     }
 
     throw failure;
+  }
+
+  /// Exchanges the refresh token for a new pair, once for all concurrent
+  /// callers. Returns whether the session now holds a fresh access token.
+  Future<bool> _refreshAccessToken() {
+    if (!session.canRefresh) return Future.value(false);
+    return _refreshInFlight ??= _performRefresh().whenComplete(() {
+      _refreshInFlight = null;
+    });
+  }
+
+  Future<bool> _performRefresh() async {
+    final refreshToken = session.refreshToken;
+    if (refreshToken == null || refreshToken.isEmpty) {
+      await session.expire();
+      return false;
+    }
+
+    try {
+      final response = await _send(
+        'POST',
+        '/auth/refresh',
+        body: {'refreshToken': refreshToken},
+        authenticated: false,
+        retryOnUnauthorized: false,
+      );
+      final data = response.asMap;
+      final accessToken = data['accessToken'] ?? data['access_token'];
+      final rotated = data['refreshToken'] ?? data['refresh_token'];
+
+      if (accessToken is! String || accessToken.isEmpty) {
+        // A 200 without a token is a protocol failure, not a usable session.
+        await session.expire();
+        return false;
+      }
+
+      await session.updateTokens(
+        AuthTokens(
+          accessToken: accessToken,
+          // The backend rotates on every refresh; keep the current one only if
+          // a response ever omits it.
+          refreshToken: rotated is String && rotated.isNotEmpty
+              ? rotated
+              : refreshToken,
+        ),
+      );
+      return true;
+    } on ApiException catch (error) {
+      // Unreachable backend / server error: the tokens may still be good, so
+      // keep them and let the user retry instead of forcing a sign-out.
+      if (error.isRetryable) return false;
+
+      // Rejected (spent, revoked, suspended account): the session is over.
+      await session.expire();
+      return false;
+    }
   }
 
   static dynamic _decodeBody(String body) {

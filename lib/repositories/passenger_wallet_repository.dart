@@ -1,7 +1,12 @@
 import '../models/passenger_wallet_transaction.dart';
+import '../models/top_up_intent.dart';
 import '../services/mock/mock_passenger_wallet_service.dart';
 import 'auth_repository.dart';
 
+/// The passenger's wallet, read from and written through the backend.
+///
+/// There is deliberately no local credit or debit: a balance shown here is a
+/// value the server reported, and it changes only when the server says so.
 class PassengerWalletRepository {
   PassengerWalletRepository({
     PassengerWalletService? service,
@@ -11,6 +16,15 @@ class PassengerWalletRepository {
   final PassengerWalletService _service;
   final AuthRepository authRepository;
 
+  /// Authoritative balance in ETB, from `GET /wallet`.
+  Future<double> getBalance() async {
+    final passenger = authRepository.currentPassenger;
+    if (passenger == null) {
+      throw StateError('No authenticated passenger');
+    }
+    return _service.getBalance(passenger.id);
+  }
+
   Future<List<PassengerWalletTransaction>> getTransactionHistory() async {
     final passenger = authRepository.currentPassenger;
     if (passenger == null) {
@@ -19,36 +33,21 @@ class PassengerWalletRepository {
     return _service.getTransactionHistory(passenger.id);
   }
 
-  Future<void> topUp(double amount) {
-    throw StateError(
-      'Use an API-backed top-up flow (initiate intent → provider checkout → confirm).',
-    );
-  }
-
-  Future<PassengerWalletTransaction> payTaxiFare({
-    required double amount,
-    required String fromLabel,
-    required String toLabel,
-    String? routeId,
+  /// Starts a top-up: creates the intent and returns the provider details.
+  /// No balance changes until [confirmTopUp] succeeds.
+  Future<TopUpIntentView> initiateTopUp({
+    required double amountEtb,
+    required String idempotencyKey,
+    String? provider,
   }) {
-    throw StateError(
-      'Use an API-backed trip payment flow. Local wallet debit is disabled.',
+    return _service.initiateTopUp(
+      amountEtb: amountEtb,
+      idempotencyKey: idempotencyKey,
+      provider: provider,
     );
   }
-}
 
-class InsufficientBalanceException implements Exception {
-  const InsufficientBalanceException({
-    required this.available,
-    required this.required,
-  });
-
-  final double available;
-  final double required;
-
-  double get shortfall => required - available;
-
-  @override
-  String toString() =>
-      'InsufficientBalanceException(available: $available, required: $required)';
+  /// Confirms the top-up; the backend verifies the provider and credits once.
+  Future<TopUpConfirmation> confirmTopUp(String intentId) =>
+      _service.confirmTopUp(intentId);
 }

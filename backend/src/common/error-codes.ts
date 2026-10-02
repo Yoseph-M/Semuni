@@ -27,11 +27,15 @@ export enum ErrorCode {
   WALLET_INSUFFICIENT_BALANCE = 'WALLET_INSUFFICIENT_BALANCE',
   WALLET_NOT_FOUND = 'WALLET_NOT_FOUND',
   WALLET_FROZEN = 'WALLET_FROZEN',
+  /** The operation's currency does not match the wallet's currency. */
+  CURRENCY_MISMATCH = 'CURRENCY_MISMATCH',
 
   // Trip
   TRIP_NOT_FOUND = 'TRIP_NOT_FOUND',
   TRIP_ALREADY_PAID = 'TRIP_ALREADY_PAID',
   TRIP_NOT_OWNED = 'TRIP_NOT_OWNED',
+  /** The trip cannot be settled: cancelled, refunded, or missing its driver/fare. */
+  TRIP_NOT_PAYABLE = 'TRIP_NOT_PAYABLE',
 
   // Payment
   PAYMENT_ALREADY_PROCESSED = 'PAYMENT_ALREADY_PROCESSED',

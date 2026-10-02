@@ -6,7 +6,10 @@ import { Trip } from '../trips/entities/trip.entity';
 import { ProcessTripPaymentDto } from './dto/payment.dto';
 import { WalletsService } from '../wallets/wallets.service';
 import { TripsService } from '../trips/trips.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import {
+  NotificationsService,
+  OutboxMessage,
+} from '../notifications/notifications.service';
 import { DomainException } from '../common/domain.exception';
 import { ErrorCode } from '../common/error-codes';
 import {
@@ -32,7 +35,7 @@ const PG_UNIQUE_VIOLATION = '23505';
  *      failure is auditable instead of vanishing with the transaction
  *   3. run one transaction that locks the trip, re-checks it, moves the money,
  *      settles the attempt, marks the trip PAID/COMPLETED
- *   4. only after the commit, notify the two participants
+ *   4. notifications are queued in the same transaction (outbox)
  *
  * Nothing inside step 3 trusts the pre-transaction read: a payment request that
  * arrives while another one is settling must observe the locked, current trip.
@@ -108,8 +111,17 @@ export class PaymentsService {
     // ── 4. One transaction: money, ledger, attempt and trip move together ────
     let settled: Payment;
     try {
-      settled = await this.dataSource.transaction((manager: EntityManager) =>
-        this.settle(manager, attempt, passengerUserId),
+      settled = await this.dataSource.transaction(
+        async (manager: EntityManager) => {
+          const payment = await this.settle(manager, attempt, passengerUserId);
+          // Outbox rows commit with the payment, so a crash can't lose them,
+          // and delivery (notifications:dispatch) can't affect the money.
+          await this.notificationsService.enqueue(
+            manager,
+            this.settlementNotifications(payment),
+          );
+          return payment;
+        },
       );
     } catch (rawErr) {
       // The financial transaction rolled back, taking its wallet, ledger and
@@ -127,10 +139,6 @@ export class PaymentsService {
       driverId: settled.driverId,
       receiptNumber: settled.receiptNumber,
     });
-
-    // ── 5. Side effects after the commit ─────────────────────────────────────
-    // A notification failure must never roll back money that already moved.
-    this.notifySettled(settled);
 
     return settled;
   }
@@ -479,35 +487,21 @@ export class PaymentsService {
     return (err as { code?: string })?.code === PG_UNIQUE_VIOLATION;
   }
 
-  /** Best-effort, post-commit, and never able to affect the payment. */
-  private notifySettled(payment: Payment): void {
-    const deliver = (work: unknown): void => {
-      void (async () => {
-        try {
-          await work;
-        } catch (err) {
-          this.logger.warn(
-            `Notification failed: ${(err as Error).message}`,
-            PaymentsService.name,
-            { paymentId: payment.id, tripId: payment.tripId },
-          );
-        }
-      })();
-    };
-
-    deliver(
-      this.notificationsService.sendPushNotification(
-        payment.passengerId,
-        'Payment Successful',
-        `You paid ${payment.amount / 100} ETB for your trip. Receipt: ${payment.receiptNumber}`,
-      ),
-    );
-    deliver(
-      this.notificationsService.sendPushNotification(
-        payment.driverId,
-        'Payment Received',
-        `You earned ${payment.amount / 100} ETB for a trip.`,
-      ),
-    );
+  private settlementNotifications(payment: Payment): OutboxMessage[] {
+    const amount = (payment.amount / 100).toFixed(2);
+    return [
+      {
+        userId: payment.passengerId,
+        title: 'Payment Successful',
+        body: `You paid ${amount} ETB for your trip. Receipt: ${payment.receiptNumber}`,
+        data: { paymentId: payment.id, tripId: payment.tripId },
+      },
+      {
+        userId: payment.driverId,
+        title: 'Payment Received',
+        body: `You earned ${amount} ETB for a trip.`,
+        data: { paymentId: payment.id, tripId: payment.tripId },
+      },
+    ];
   }
 }

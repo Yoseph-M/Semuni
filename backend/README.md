@@ -341,6 +341,10 @@ Passenger wallet --DEBIT 8500--> Trip payment --CREDIT 8500--> Driver wallet
         100000 -> 91500                        0 -> 8500
 ```
 
+## Operations
+
+Probes, scheduled jobs (top-up reconciliation, notification dispatch, integrity checks), Telebirr setup, logs, audit trail and incident steps: see [docs/RUNBOOK.md](docs/RUNBOOK.md).
+
 ## Payment providers
 
 The wallet core depends only on the `PaymentProviderGateway` port

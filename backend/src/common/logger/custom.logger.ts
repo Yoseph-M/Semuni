@@ -18,7 +18,12 @@ export class CustomLogger extends ConsoleLogger {
   private userId?: string;
 
   constructor() {
-    super();
+    // One JSON object per line in production (or LOG_FORMAT=json) for log
+    // aggregation; human-readable output otherwise.
+    const json =
+      (process.env.LOG_FORMAT ??
+        (process.env.NODE_ENV === 'production' ? 'json' : 'pretty')) === 'json';
+    super({ json, colors: !json });
   }
 
   setContext(context: string) {

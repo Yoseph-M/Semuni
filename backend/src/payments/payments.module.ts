@@ -10,7 +10,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { LedgerEntry } from '../ledger/entities/ledger-entry.entity';
 import { TripsService } from '../trips/trips.service';
 import { DriversService } from '../drivers/drivers.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { Driver } from '../drivers/entities/driver.entity';
 import { CustomLogger } from '../common/logger/custom.logger';
 import { FaresModule } from '../fares/fares.module';
@@ -23,6 +23,7 @@ import { VehiclesModule } from '../vehicles/vehicles.module';
     // checks vehicle ownership.
     FaresModule,
     VehiclesModule,
+    NotificationsModule,
   ],
   providers: [
     PaymentsService,
@@ -30,7 +31,6 @@ import { VehiclesModule } from '../vehicles/vehicles.module';
     LedgerService,
     TripsService,
     DriversService,
-    NotificationsService,
     CustomLogger,
   ],
   controllers: [PaymentsController],

@@ -19,9 +19,11 @@ import '../repositories/auth_repository.dart';
 import '../models/passenger_route.dart';
 import '../models/trip.dart';
 import '../repositories/driver_dashboard_repository.dart';
+import '../repositories/driver_discovery_repository.dart';
 import '../repositories/driver_route_repository.dart';
 import '../repositories/passenger_route_repository.dart';
 import '../repositories/passenger_wallet_repository.dart';
+import '../repositories/payment_repository.dart';
 import '../repositories/trip_repository.dart';
 import 'app_routes.dart';
 
@@ -44,6 +46,8 @@ class AppRouter {
     this.driverRouteRepository,
     this.passengerRouteRepository,
     this.passengerWalletRepository,
+    this.paymentRepository,
+    this.driverDiscoveryRepository,
   });
 
   final AuthRepository authRepository;
@@ -52,6 +56,12 @@ class AppRouter {
   final DriverRouteRepository? driverRouteRepository;
   final PassengerRouteRepository? passengerRouteRepository;
   final PassengerWalletRepository? passengerWalletRepository;
+  final PaymentRepository? paymentRepository;
+  final DriverDiscoveryRepository? driverDiscoveryRepository;
+
+  /// Payment and driver discovery have no mock fallback here: a payment screen
+  /// built without them shows an explanatory placeholder instead of silently
+  /// running against a different backend or a fake.
 
   TripRepository get _effectiveTripRepository =>
       tripRepository ?? TripRepository();
@@ -102,6 +112,8 @@ class AppRouter {
       ),
       AppRoutes.passengerPayment => () {
         final route = arguments is PassengerRoute ? arguments : null;
+        final payments = paymentRepository;
+        final drivers = driverDiscoveryRepository;
 
         if (route == null) {
           return const PlaceholderScreen(
@@ -110,11 +122,22 @@ class AppRouter {
             description: 'No route selected for payment.',
           );
         }
+        if (payments == null || drivers == null) {
+          return const PlaceholderScreen(
+            title: 'Payment',
+            icon: Icons.payments_outlined,
+            description:
+                'Payment is not available in this build (missing dependencies).',
+          );
+        }
         return PassengerPaymentScreen(
           route: route,
           authRepository: authRepository,
           walletRepository: _effectivePassengerWalletRepository,
           tripRepository: _effectiveTripRepository,
+          paymentRepository: payments,
+          driverDiscoveryRepository: drivers,
+          routeRepository: _effectivePassengerRouteRepository,
         );
       }(),
       AppRoutes.passengerTripHistory => PassengerTripHistoryScreen(

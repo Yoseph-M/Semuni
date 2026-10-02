@@ -19,15 +19,18 @@ import { TripsModule } from './trips/trips.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SettlementsModule } from './settlements/settlements.module';
 import { HealthModule } from './health/health.module';
+import { AuditModule } from './audit/audit.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { CustomLogger } from './common/logger/custom.logger';
 import { LoggerInterceptor } from './common/interceptors/logger.interceptor';
+import { validateEnv } from './config/env.validation';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env'],
+      validate: validateEnv,
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
@@ -69,6 +72,7 @@ import { LoggerInterceptor } from './common/interceptors/logger.interceptor';
     NotificationsModule,
     SettlementsModule,
     HealthModule,
+    AuditModule,
   ],
   controllers: [],
   providers: [

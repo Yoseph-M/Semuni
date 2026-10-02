@@ -9,6 +9,7 @@ class PassengerWalletTransaction {
     required this.type,
     required this.createdAt,
     this.referenceId,
+    this.creditOverride,
   });
 
   final String id;
@@ -26,10 +27,17 @@ class PassengerWalletTransaction {
   /// Optional reference (e.g. trip ID or payment gateway ref).
   final String? referenceId;
 
+  /// The backend's own CREDIT/DEBIT direction, when it provided one.
+  ///
+  /// The ledger is the authority on which way money moved: an ADJUSTMENT can
+  /// legitimately be either. Null for mock-era records.
+  final bool? creditOverride;
+
   /// Whether this is money coming in (credit) or going out (debit).
   bool get isCredit =>
-      type == PassengerWalletTransactionType.topUp ||
-      type == PassengerWalletTransactionType.refund;
+      creditOverride ??
+      (type == PassengerWalletTransactionType.topUp ||
+          type == PassengerWalletTransactionType.refund);
 
   @override
   String toString() =>

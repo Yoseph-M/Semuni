@@ -34,6 +34,11 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.3.0
 
+  # Persistent credential storage. Refresh tokens are never written to plain
+  # preferences: they go to the platform keystore/keychain, and tests inject an
+  # in-memory TokenStore instead (see lib/core/auth/auth_session.dart).
+  flutter_secure_storage: ^9.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

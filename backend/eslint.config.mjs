@@ -39,6 +39,13 @@ export default tseslint.config(
     },
   },
   {
+    // Tests build partial mocks and fixtures where `any` is the honest type.
+    files: ['**/*.spec.ts', 'test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
     // Ambient declaration files legitimately use `declare global`/namespaces.
     files: ['**/*.d.ts'],
     rules: {

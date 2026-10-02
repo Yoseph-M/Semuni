@@ -1,8 +1,12 @@
-import { Entity, Column, Index } from 'typeorm';
+import { Entity, Column, Index, Check, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import { Trip } from '../../trips/entities/trip.entity';
+import { Route } from '../../routes/entities/route.entity';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { PaymentRecordStatus, Currency, PaymentProvider } from '../../common/enums';
 
 @Entity('payments')
+@Check('CHK_payment_amount_positive', '"amount" > 0')
 // An idempotency key is only meaningful to the user who generated it, so
 // uniqueness is scoped to the payer. A key must never be treated as a global
 // namespace: two different passengers are allowed to pick the same string.
@@ -25,20 +29,37 @@ import { PaymentRecordStatus, Currency, PaymentProvider } from '../../common/enu
   where: '"receiptNumber" IS NOT NULL',
 })
 export class Payment extends BaseEntity {
-  @Column()
+  @Column({ type: 'uuid' })
   @Index()
   tripId: string;
 
-  @Column()
+  @ManyToOne(() => Trip)
+  @JoinColumn({ name: 'tripId', foreignKeyConstraintName: 'FK_payments_tripId' })
+  trip?: Trip;
+
+  @Column({ type: 'uuid' })
   @Index()
   passengerId: string;
 
-  @Column()
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'passengerId', foreignKeyConstraintName: 'FK_payments_passengerId' })
+  passenger?: User;
+
+  @Column({ type: 'uuid' })
   @Index()
   driverId: string;
 
-  @Column({ nullable: true })
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'driverId', foreignKeyConstraintName: 'FK_payments_driverId' })
+  driver?: User;
+
+  @Column({ type: 'uuid', nullable: true })
+  @Index('IDX_payments_routeId')
   routeId?: string;
+
+  @ManyToOne(() => Route)
+  @JoinColumn({ name: 'routeId', foreignKeyConstraintName: 'FK_payments_routeId' })
+  route?: Route;
 
   @Column({ type: 'int' })
   amount: number;

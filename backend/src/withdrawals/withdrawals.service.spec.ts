@@ -33,7 +33,7 @@ describe('WithdrawalsService', () => {
     };
 
     walletsService = {
-      debitForWithdrawal: jest.fn(),
+      debitWallet: jest.fn(),
     };
 
     // assertOperationalDriver resolves the user (role) and the driver profile
@@ -107,22 +107,27 @@ describe('WithdrawalsService', () => {
       const result = await service.requestWithdrawal('driver-u-1', baseDto);
       expect(result).toEqual(existing);
       expect(dataSource.transaction).not.toHaveBeenCalled();
-      expect(walletsService.debitForWithdrawal).not.toHaveBeenCalled();
+      expect(walletsService.debitWallet).not.toHaveBeenCalled();
     });
 
     it('debits wallet atomically, marks PROCESSING, and returns the withdrawal record', async () => {
       withdrawalRepo.findOne.mockResolvedValue(null);
       const wallet = { id: 'w1', balance: 10000, status: WalletStatus.ACTIVE, currency: Currency.ETB };
-      walletsService.debitForWithdrawal.mockResolvedValue(wallet);
+      walletsService.debitWallet.mockResolvedValue(wallet);
 
       const result = await service.requestWithdrawal('driver-u-1', baseDto);
 
       expect(dataSource.transaction).toHaveBeenCalled();
-      expect(walletsService.debitForWithdrawal).toHaveBeenCalledWith(
+      expect(walletsService.debitWallet).toHaveBeenCalledWith(
         expect.anything(),
         'driver-u-1',
         2000,
-        expect.any(String),
+        expect.objectContaining({
+          entryType: 'WITHDRAWAL',
+          referenceType: 'WITHDRAWAL',
+          referenceId: expect.any(String),
+          insufficientBalanceCode: ErrorCode.WITHDRAWAL_INSUFFICIENT_BALANCE,
+        }),
       );
       expect(result.status).toEqual(WithdrawalStatus.PROCESSING);
       expect(result.amount).toBe(2000);
@@ -139,7 +144,7 @@ describe('WithdrawalsService', () => {
         service.requestWithdrawal('passenger-u-1', baseDto),
       ).rejects.toMatchObject({ code: ErrorCode.AUTH_FORBIDDEN });
       expect(dataSource.transaction).not.toHaveBeenCalled();
-      expect(walletsService.debitForWithdrawal).not.toHaveBeenCalled();
+      expect(walletsService.debitWallet).not.toHaveBeenCalled();
     });
 
     it('rejects a driver profile that is not ACTIVE', async () => {
@@ -152,7 +157,7 @@ describe('WithdrawalsService', () => {
       await expect(
         service.requestWithdrawal('driver-u-1', baseDto),
       ).rejects.toMatchObject({ code: ErrorCode.DRIVER_NOT_ACTIVE });
-      expect(walletsService.debitForWithdrawal).not.toHaveBeenCalled();
+      expect(walletsService.debitWallet).not.toHaveBeenCalled();
     });
 
     it('rejects an idempotency key reused with a different amount', async () => {
@@ -172,9 +177,9 @@ describe('WithdrawalsService', () => {
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });
 
-    it('marks withdrawal FAILED and rethrows when debitForWithdrawal fails', async () => {
+    it('marks withdrawal FAILED and rethrows when the wallet debit fails', async () => {
       withdrawalRepo.findOne.mockResolvedValue(null);
-      walletsService.debitForWithdrawal.mockRejectedValue(
+      walletsService.debitWallet.mockRejectedValue(
         new DomainException(
           'Insufficient wallet balance for withdrawal',
           400,

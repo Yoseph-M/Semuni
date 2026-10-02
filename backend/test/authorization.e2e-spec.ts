@@ -371,6 +371,16 @@ describe('Authorization (e2e)', () => {
   });
 
   describe('POST /trips — driver and vehicle policy', () => {
+    // Phase 4 made authoritative route and stop IDs part of the trip contract,
+    // so a stop-less payload no longer reaches the service at all. The driver
+    // and vehicle policy asserted below is evaluated before the fare lookup,
+    // so format-valid placeholder IDs are enough to exercise it.
+    const placeholderStops = {
+      routeId: '00000000-0000-4000-8000-000000000000',
+      originStopId: '00000000-0000-4000-8000-000000000001',
+      destinationStopId: '00000000-0000-4000-8000-000000000002',
+    };
+
     const createTrip = (as: Account, body: Record<string, unknown>) =>
       request(app.getHttpServer())
         .post('/api/v1/trips')
@@ -378,6 +388,7 @@ describe('Authorization (e2e)', () => {
         .send({
           origin: 'Authz Origin',
           destination: 'Authz Destination',
+          ...placeholderStops,
           ...body,
         });
 

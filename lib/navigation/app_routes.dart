@@ -18,7 +18,8 @@ abstract final class AppRoutes {
   static const String passengerMap = '/passenger/map';
   static const String passengerWallet = '/passenger/wallet';
 
-  static const String passengerRecentTrips = '/passenger/recent-trips';
+  static const String passengerTripHistory = '/passenger/trip-history';
+  static const String passengerTripDetail = '/passenger/trip-detail';
   static const String passengerNotifications = '/passenger/notifications';
   static const String passengerSettings = '/passenger/settings';
   static const String passengerPayment = '/passenger/payment';

@@ -12,9 +12,12 @@ import '../features/passenger/screens/passenger_home_screen.dart';
 import '../features/passenger/screens/passenger_map_screen.dart';
 import '../features/passenger/screens/passenger_payment_screen.dart';
 import '../features/passenger/screens/passenger_settings_screen.dart';
+import '../features/passenger/screens/passenger_trip_detail_screen.dart';
+import '../features/passenger/screens/passenger_trip_history_screen.dart';
 import '../features/passenger/screens/passenger_wallet_screen.dart';
 import '../repositories/auth_repository.dart';
 import '../models/passenger_route.dart';
+import '../models/trip.dart';
 import '../repositories/driver_dashboard_repository.dart';
 import '../repositories/driver_route_repository.dart';
 import '../repositories/passenger_route_repository.dart';
@@ -111,13 +114,23 @@ class AppRouter {
           route: route,
           authRepository: authRepository,
           walletRepository: _effectivePassengerWalletRepository,
+          tripRepository: _effectiveTripRepository,
         );
       }(),
-      AppRoutes.passengerRecentTrips => const PlaceholderScreen(
-        title: 'Recent Trips',
-        icon: Icons.history_rounded,
-        description: 'View your past trips and payment history.',
+      AppRoutes.passengerTripHistory => PassengerTripHistoryScreen(
+        tripRepository: _effectiveTripRepository,
       ),
+      AppRoutes.passengerTripDetail => () {
+        final trip = arguments is Trip ? arguments : null;
+        if (trip == null) {
+          return const PlaceholderScreen(
+            title: 'Trip Detail',
+            icon: Icons.directions_car_rounded,
+            description: 'No trip found.',
+          );
+        }
+        return PassengerTripDetailScreen(trip: trip);
+      }(),
       AppRoutes.passengerNotifications => const PlaceholderScreen(
         title: 'Notifications',
         icon: Icons.notifications_rounded,

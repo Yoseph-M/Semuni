@@ -7,6 +7,7 @@ import '../../../core/utils/app_formatters.dart';
 import '../../../models/passenger_route.dart';
 import '../../../repositories/passenger_wallet_repository.dart';
 import '../../../repositories/auth_repository.dart';
+import '../../../repositories/trip_repository.dart';
 
 /// Passenger Taxi Payment Screen.
 ///
@@ -22,11 +23,13 @@ class PassengerPaymentScreen extends StatefulWidget {
     required this.route,
     required this.walletRepository,
     required this.authRepository,
+    required this.tripRepository,
   });
 
   final PassengerRoute route;
   final PassengerWalletRepository walletRepository;
   final AuthRepository authRepository;
+  final TripRepository tripRepository;
 
   @override
   State<PassengerPaymentScreen> createState() => _PassengerPaymentScreenState();
@@ -79,6 +82,17 @@ class _PassengerPaymentScreenState extends State<PassengerPaymentScreen> {
             route: widget.route,
             newBalance:
                 _newBalance ?? widget.authRepository.passengerWalletBalance,
+            onCompleteJourney: () async {
+              await widget.tripRepository.completeJourney(
+                fromLocation: widget.route.startLabel,
+                toLocation: widget.route.endLabel,
+                fare: widget.route.fare,
+                routeCode: widget.route.routeCode,
+              );
+              if (!mounted) return;
+              Navigator.of(this.context).pop(); // pop payment screen
+              Navigator.of(this.context).pushNamed('/passenger/trip-history');
+            },
             onDone: () => Navigator.of(context).pop(),
           ),
           _PaymentStatus.insufficientBalance => _InsufficientBalanceBody(
@@ -317,11 +331,13 @@ class _SuccessBody extends StatelessWidget {
   const _SuccessBody({
     required this.route,
     required this.newBalance,
+    required this.onCompleteJourney,
     required this.onDone,
   });
 
   final PassengerRoute route;
   final double newBalance;
+  final VoidCallback onCompleteJourney;
   final VoidCallback onDone;
 
   @override
@@ -409,8 +425,8 @@ class _SuccessBody extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              key: const Key('payment_done_button'),
-              onPressed: onDone,
+              key: const Key('complete_journey_button'),
+              onPressed: onCompleteJourney,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.textOnPrimary,
@@ -420,9 +436,24 @@ class _SuccessBody extends StatelessWidget {
                 ),
               ),
               child: Text(
-                'Done',
+                'Complete Journey & View Trip',
                 style: AppTextStyles.labelLarge.copyWith(
                   fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppConstants.spacingSm),
+
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: onDone,
+              child: Text(
+                'Done',
+                style: AppTextStyles.labelLarge.copyWith(
+                  color: AppColors.textSecondary,
                 ),
               ),
             ),

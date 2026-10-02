@@ -8,11 +8,19 @@ abstract interface class TripService {
   /// Fetches the recent trips taken by the passenger.
   Future<List<Trip>> getRecentTrips({int limit = 5});
 
-  /// Books a new ride and stores it in recent trips.
-  Future<Trip> bookRide({
+  /// Records a completed taxi journey.
+  Future<Trip> completeJourney({
     required String fromLocation,
     required String toLocation,
     required double fare,
+    String? routeCode,
+  });
+
+  /// Books a new ride request for the passenger.
+  Future<Trip> bookRide({
+    required String fromLocation,
+    required String toLocation,
+    required double estimatedFare,
     String? routeCode,
   });
 }
@@ -27,6 +35,8 @@ class MockTripService implements TripService {
   final Duration simulatedDelay;
 
   late final List<Trip> _trips = _generateInitialTrips();
+
+  static int _idCounter = 0;
 
   static List<Trip> _generateInitialTrips() {
     final now = DateTime.now();
@@ -79,7 +89,7 @@ class MockTripService implements TripService {
   }
 
   @override
-  Future<Trip> bookRide({
+  Future<Trip> completeJourney({
     required String fromLocation,
     required String toLocation,
     required double fare,
@@ -90,12 +100,38 @@ class MockTripService implements TripService {
     }
 
     final newTrip = Trip(
-      id: 'TRP-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+      id: 'TRP-${++_idCounter}',
       fromLocation: fromLocation,
       toLocation: toLocation,
       amountPaid: fare,
       completedAt: DateTime.now(),
-      driverName: 'Abebe T.',
+      driverName: 'Local Taxi',
+      status: TripStatus.completed,
+      routeCode: routeCode,
+    );
+
+    _trips.insert(0, newTrip);
+    return newTrip;
+  }
+
+  @override
+  Future<Trip> bookRide({
+    required String fromLocation,
+    required String toLocation,
+    required double estimatedFare,
+    String? routeCode,
+  }) async {
+    if (simulatedDelay > Duration.zero) {
+      await Future<void>.delayed(simulatedDelay);
+    }
+
+    final newTrip = Trip(
+      id: 'TRP-${++_idCounter}',
+      fromLocation: fromLocation,
+      toLocation: toLocation,
+      amountPaid: estimatedFare,
+      completedAt: DateTime.now(),
+      driverName: 'Pending',
       status: TripStatus.requested,
       routeCode: routeCode,
     );

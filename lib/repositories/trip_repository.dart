@@ -18,17 +18,34 @@ class TripRepository {
     return _tripService.getRecentTrips(limit: limit);
   }
 
-  /// Books a new ride and records it in the trip history.
-  Future<Trip> bookRide({
+  /// Records a completed taxi journey in the trip history.
+  Future<Trip> completeJourney({
     required String fromLocation,
     required String toLocation,
     required double fare,
     String? routeCode,
   }) async {
-    return _tripService.bookRide(
+    return _tripService.completeJourney(
       fromLocation: fromLocation,
       toLocation: toLocation,
       fare: fare,
+      routeCode: routeCode,
+    );
+  }
+
+  /// Books a new ride request for the passenger.
+  ///
+  /// Returns a [Trip] with [TripStatus.requested] representing the pending booking.
+  Future<Trip> bookRide({
+    required String fromLocation,
+    required String toLocation,
+    required double estimatedFare,
+    String? routeCode,
+  }) async {
+    return _tripService.bookRide(
+      fromLocation: fromLocation,
+      toLocation: toLocation,
+      estimatedFare: estimatedFare,
       routeCode: routeCode,
     );
   }

@@ -68,7 +68,7 @@ class _RecentTripsSectionState extends State<RecentTripsSection> {
                   widget.onViewAllTap ??
                   () {
                     Navigator.of(context)
-                        .pushNamed(AppRoutes.passengerRecentTrips);
+                        .pushNamed(AppRoutes.passengerTripHistory);
                   },
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
@@ -198,111 +198,117 @@ class _TripListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppConstants.spacingMd,
-        vertical: AppConstants.spacingSm + 2,
-      ),
-      child: Row(
-        children: [
-          // Transportation Icon Badge
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: AppColors.primaryTint,
-              borderRadius: BorderRadius.circular(AppConstants.radiusSm + 2),
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.local_taxi_outlined,
-                size: AppConstants.iconMd,
-                color: AppColors.primary,
+    return InkWell(
+      onTap: () {
+        Navigator.of(context)
+            .pushNamed(AppRoutes.passengerTripDetail, arguments: trip);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppConstants.spacingMd,
+          vertical: AppConstants.spacingSm + 2,
+        ),
+        child: Row(
+          children: [
+            // Transportation Icon Badge
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppColors.primaryTint,
+                borderRadius: BorderRadius.circular(AppConstants.radiusSm + 2),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.local_taxi_outlined,
+                  size: AppConstants.iconMd,
+                  color: AppColors.primary,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: AppConstants.spacingSm),
+            const SizedBox(width: AppConstants.spacingSm),
 
-          // Route (From → To) & Timestamp
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // Route (From → To) & Timestamp
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          trip.fromLocation,
+                          style: AppTextStyles.titleMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        child: Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 13,
+                          color: AppColors.textHint,
+                        ),
+                      ),
+                      Flexible(
+                        child: Text(
+                          trip.toLocation,
+                          style: AppTextStyles.titleMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    AppFormatters.formatTripDate(trip.completedAt),
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: 12.0,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: AppConstants.spacingSm),
+
+            // Amount Paid & Driver Name
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        trip.fromLocation,
-                        style: AppTextStyles.titleMedium.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 13,
-                        color: AppColors.textHint,
-                      ),
-                    ),
-                    Flexible(
-                      child: Text(
-                        trip.toLocation,
-                        style: AppTextStyles.titleMedium.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+                Text(
+                  AppFormatters.formatCurrency(trip.amountPaid),
+                  style: AppTextStyles.titleMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  AppFormatters.formatTripDate(trip.completedAt),
+                  trip.driverName,
                   style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                    fontSize: 12.0,
+                    color: AppColors.textHint,
+                    fontSize: 11.5,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
-          ),
-
-          const SizedBox(width: AppConstants.spacingSm),
-
-          // Amount Paid & Driver Name
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                AppFormatters.formatCurrency(trip.amountPaid),
-                style: AppTextStyles.titleMedium.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                trip.driverName,
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textHint,
-                  fontSize: 11.5,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+          ],
+        ), // Row
+      ), // Padding
+    ); // InkWell
   }
 }

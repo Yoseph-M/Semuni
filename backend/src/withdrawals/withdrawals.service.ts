@@ -5,6 +5,7 @@ import { Withdrawal } from './entities/withdrawal.entity';
 import { RequestWithdrawalDto } from './dto/withdrawal.dto';
 import { WalletsService } from '../wallets/wallets.service';
 import {
+  LedgerEntryType,
   WithdrawalStatus,
   PaymentProvider,
   DriverStatus,
@@ -127,12 +128,18 @@ export class WithdrawalsService {
       const saved = await manager.save(withdrawal);
 
       try {
-        await this.walletsService.debitForWithdrawal(
-          manager,
-          driverUserId,
-          dto.amount,
-          saved.id,
-        );
+        // Debit through the shared wallet mechanism: the balance change and its
+        // ledger entry are written together, under the wallet lock, and the
+        // reference (withdrawal id) makes a replayed debit impossible.
+        await this.walletsService.debitWallet(manager, driverUserId, dto.amount, {
+          entryType: LedgerEntryType.WITHDRAWAL,
+          transactionId: saved.id,
+          referenceType: 'WITHDRAWAL',
+          referenceId: saved.id,
+          description: 'Withdrawal from wallet',
+          currency: saved.currency,
+          insufficientBalanceCode: ErrorCode.WITHDRAWAL_INSUFFICIENT_BALANCE,
+        });
 
         saved.status = WithdrawalStatus.PROCESSING;
         await manager.save(saved);

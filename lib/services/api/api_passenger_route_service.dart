@@ -1,7 +1,17 @@
 import '../../core/network/api_client.dart';
+import '../../models/fare_quote.dart';
 import '../../models/passenger_route.dart';
 import '../mock/mock_passenger_route_service.dart';
 
+/// Route discovery against the NestJS backend.
+///
+/// Everything identity-related comes from the API: route ids, stop ids (which
+/// fare quotes and trips require), names for display, and coordinates. Route
+/// names are never used as identity, and fares are read from the fare engine,
+/// never invented here.
+///
+/// Fares arrive in minor units (santim) and are converted once, at the edge,
+/// into ETB for display — `PassengerRoute.fare` is an ETB amount.
 class ApiPassengerRouteService implements PassengerRouteService {
   ApiPassengerRouteService({required this.client});
 
@@ -10,36 +20,6 @@ class ApiPassengerRouteService implements PassengerRouteService {
   Future<List<Map<String, dynamic>>> _fetchRawRoutes() async {
     final response = await client.get('/routes');
     return response.asMapList;
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchRouteQuotes(
-    List<Map<String, dynamic>> routes,
-  ) async {
-    return Future.wait(
-      routes.map((route) async {
-        final stops = _sortedStops(route['stops']);
-        if (stops.length < 2) {
-          return <String, dynamic>{'routeId': route['id'], 'fare': 0.0};
-        }
-
-        try {
-          final quote = await client.post(
-            '/fares/calculate',
-            body: {
-              'routeId': route['id'],
-              'originStopId': stops.first['id'],
-              'destinationStopId': stops.last['id'],
-            },
-          );
-          return <String, dynamic>{
-            'routeId': route['id'],
-            'fare': (quote.asMap['fare'] as num?)?.toDouble() ?? 0.0,
-          };
-        } catch (_) {
-          return <String, dynamic>{'routeId': route['id'], 'fare': 0.0};
-        }
-      }),
-    );
   }
 
   @override
@@ -56,12 +36,7 @@ class ApiPassengerRouteService implements PassengerRouteService {
 
     final values = stops.values.toList(growable: false);
     final coordinates = values
-        .map(
-          (s) => (
-            lat: (s['latitude'] as num?)?.toDouble(),
-            lon: (s['longitude'] as num?)?.toDouble(),
-          ),
-        )
+        .map((s) => (lat: _number(s['latitude']), lon: _number(s['longitude'])))
         .where((p) => p.lat != null && p.lon != null)
         .toList(growable: false);
 
@@ -80,20 +55,17 @@ class ApiPassengerRouteService implements PassengerRouteService {
 
     return List.generate(values.length, (index) {
       final stop = values[index];
-      final lat = (stop['latitude'] as num?)?.toDouble();
-      final lon = (stop['longitude'] as num?)?.toDouble();
+      final lat = _number(stop['latitude']);
+      final lon = _number(stop['longitude']);
 
-      final mapX = lon != null &&
-              minLon != null &&
-              maxLon != null &&
-              maxLon > minLon
+      // Coordinates are projected into 0..1 for the schematic map canvas. When
+      // a stop has none, it is laid out on a deterministic grid instead of
+      // being dropped, so every backend stop remains selectable.
+      final mapX = lon != null && minLon != null && maxLon != null && maxLon > minLon
           ? (lon - minLon) / (maxLon - minLon)
           : (index % 5) / 4.0;
 
-      final mapY = lat != null &&
-              minLat != null &&
-              maxLat != null &&
-              maxLat > minLat
+      final mapY = lat != null && minLat != null && maxLat != null && maxLat > minLat
           ? 1 - (lat - minLat) / (maxLat - minLat)
           : (index ~/ 5) /
               ((values.length / 5).ceil().clamp(1, 100).toDouble());
@@ -113,21 +85,38 @@ class ApiPassengerRouteService implements PassengerRouteService {
   Future<List<PassengerRoute>> getAllRoutes() async {
     final raw = await _fetchRawRoutes();
     final quotes = await _fetchRouteQuotes(raw);
-    final fareByRoute = <String, double>{
+    // Quoted in santim; the model displays ETB, so convert once here.
+    final fareEtbByRoute = <String, double>{
       for (final quote in quotes)
         if (_string(quote['routeId']) != null)
           _string(quote['routeId'])!:
-              (quote['fare'] as num?)?.toDouble() ?? 0.0,
+              ((quote['fareMinor'] as num?)?.toDouble() ?? 0) / 100,
     };
 
     return raw
         .map(
-          (route) => _toModel(
-            route,
-            fareByRoute[_string(route['id'])] ?? 0.0,
-          ),
+          (route) => _toModel(route, fareEtbByRoute[_string(route['id'])] ?? 0),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<FareQuote> quoteFare({
+    required String routeId,
+    required String originStopId,
+    required String destinationStopId,
+    String? vehicleType,
+  }) async {
+    final response = await client.post(
+      '/fares/calculate',
+      body: {
+        'routeId': routeId,
+        'originStopId': originStopId,
+        'destinationStopId': destinationStopId,
+        'vehicleType': ?vehicleType,
+      },
+    );
+    return _quoteFromJson(response.asMap);
   }
 
   @override
@@ -151,8 +140,7 @@ class ApiPassengerRouteService implements PassengerRouteService {
     return routes
         .where(
           (route) =>
-              route.endStation == stationId ||
-              route.startStation == stationId,
+              route.endStation == stationId || route.startStation == stationId,
         )
         .toList(growable: false);
   }
@@ -177,10 +165,68 @@ class ApiPassengerRouteService implements PassengerRouteService {
     }).toList(growable: false);
   }
 
-  PassengerRoute _toModel(
-    Map<String, dynamic> route,
-    double fare,
-  ) {
+  /// Quotes the full route (first → last stop) for each route, for display.
+  ///
+  /// A route whose journey cannot be quoted right now (no active tariff rule,
+  /// too few stops) is reported as ETB 0 and shown as unavailable rather than
+  /// inventing a price. The authoritative quote for a chosen segment is fetched
+  /// again in the payment flow.
+  Future<List<Map<String, dynamic>>> _fetchRouteQuotes(
+    List<Map<String, dynamic>> routes,
+  ) async {
+    return Future.wait(
+      routes.map((route) async {
+        final stops = _sortedStops(route['stops']);
+        final routeId = _string(route['id']);
+        if (stops.length < 2 || routeId == null) {
+          return <String, dynamic>{'routeId': routeId, 'fareMinor': 0};
+        }
+
+        final originId = _string(stops.first['id']);
+        final destinationId = _string(stops.last['id']);
+        if (originId == null || destinationId == null) {
+          return <String, dynamic>{'routeId': routeId, 'fareMinor': 0};
+        }
+
+        try {
+          final quote = await quoteFare(
+            routeId: routeId,
+            originStopId: originId,
+            destinationStopId: destinationId,
+          );
+          return <String, dynamic>{
+            'routeId': routeId,
+            'fareMinor': quote.fareMinor,
+          };
+        } catch (_) {
+          // A missing/ambiguous tariff for one route must not blank the whole
+          // discovery list.
+          return <String, dynamic>{'routeId': routeId, 'fareMinor': 0};
+        }
+      }),
+    );
+  }
+
+  static FareQuote _quoteFromJson(Map<String, dynamic> data) {
+    final fare = data['fare'];
+    return FareQuote(
+      // The fare engine speaks minor units; a fractional value would be a
+      // backend bug, so it is not silently rounded here.
+      fareMinor: fare is num ? fare.toInt() : 0,
+      currency: _string(data['currency']) ?? 'ETB',
+      routeId: _string(data['routeId']) ?? '',
+      originStopId: _string(data['originStopId']) ?? '',
+      destinationStopId: _string(data['destinationStopId']) ?? '',
+      routeName: _string(data['routeName']),
+      originStopName: _string(data['originStopName']),
+      destinationStopName: _string(data['destinationStopName']),
+      tariffId: _string(data['tariffId']),
+      tariffVersion: _string(data['tariffVersion']),
+      tariffRuleId: _string(data['tariffRuleId']),
+    );
+  }
+
+  PassengerRoute _toModel(Map<String, dynamic> route, double fareEtb) {
     final stops = _sortedStops(route['stops']);
     final origin = stops.isNotEmpty
         ? (_string(stops.first['name']) ?? _string(route['origin']) ?? 'Origin')
@@ -193,16 +239,15 @@ class ApiPassengerRouteService implements PassengerRouteService {
 
     return PassengerRoute(
       id: _string(route['id']) ?? '',
-      name: _string(route['name']) ?? (origin + ' → ' + destination),
-      startStation:
-          stops.isNotEmpty ? (_string(stops.first['id']) ?? '') : '',
-      endStation:
-          stops.isNotEmpty ? (_string(stops.last['id']) ?? '') : '',
+      name: _string(route['name']) ?? '$origin → $destination',
+      startStation: stops.isNotEmpty ? (_string(stops.first['id']) ?? '') : '',
+      endStation: stops.isNotEmpty ? (_string(stops.last['id']) ?? '') : '',
       startLabel: origin,
       endLabel: destination,
-      fare: fare,
-      isAvailable:
-          (_string(route['status']) ?? 'ACTIVE') == 'ACTIVE' && fare > 0,
+      fare: fareEtb,
+      // A price of zero means "no official fare published", not "free ride":
+      // the route is shown but cannot be paid.
+      isAvailable: (_string(route['status']) ?? 'ACTIVE') == 'ACTIVE' && fareEtb > 0,
       routeCode: _string(route['code']),
       intermediateStops: stops.length > 2
           ? stops
@@ -210,18 +255,41 @@ class ApiPassengerRouteService implements PassengerRouteService {
               .map((s) => _string(s['name']) ?? 'Stop')
               .toList(growable: false)
           : const [],
+      stops: stops
+          .map(
+            (s) => RouteStop(
+              id: _string(s['id']) ?? '',
+              name: _string(s['name']) ?? 'Stop',
+              sequence: (_number(s['sequence']) ?? 0).toInt(),
+              latitude: _number(s['latitude']),
+              longitude: _number(s['longitude']),
+            ),
+          )
+          .where((s) => s.id.isNotEmpty)
+          .toList(growable: false),
     );
   }
 
+  /// Sorts stops by sequence, tolerating the string-encoded numerics TypeORM
+  /// can produce.
   static List<Map<String, dynamic>> _sortedStops(Object? raw) {
     if (raw is! List) return const [];
 
     final stops = raw.whereType<Map<String, dynamic>>().toList();
     stops.sort(
-      (a, b) => ((a['sequence'] as num?) ?? 0)
-          .compareTo((b['sequence'] as num?) ?? 0),
+      (a, b) => (_number(a['sequence']) ?? 0).compareTo(
+        _number(b['sequence']) ?? 0,
+      ),
     );
     return stops;
+  }
+
+  /// Reads a number that may arrive as a JSON number or a string (PostgreSQL
+  /// `decimal` columns are serialized as strings).
+  static double? _number(Object? value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
   }
 
   static String? _string(Object? value) =>

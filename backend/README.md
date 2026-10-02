@@ -108,7 +108,10 @@ The database is the single source of truth for identities, and no credentials ar
 checked into this repository. For local development fixtures there is an optional
 seed (`npm run seed:dev`) that creates an admin, a passenger and a driver plus a
 sample route and tariff. Every seed password comes from `SEED_*_PASSWORD` (with a
-random one-off fallback that is printed once), never from source.
+random one-off fallback that is printed once), never from source. The seed runs
+repeatedly without duplicating data, publishes its sample tariff as
+`TARIFF-SAMPLE-V1` and activates it — and refuses to displace a schedule that is
+already active, so it can never override a real regulator tariff.
 
 **Login is by `username`; `phone` is an optional contact detail.** Create an
 account through the real registration endpoint — it hashes the password with
@@ -209,14 +212,24 @@ npm run test        # unit tests
 npm run test:e2e    # integration tests (boots the real app against PostgreSQL)
 ```
 
+The e2e suites all boot the real application against the same configured
+database, so they run **serially** (`maxWorkers: 1`): parallel workers contend for
+the same connections and can time out during setup, and a suite that temporarily
+changes shared state — `tariff.e2e-spec.ts` parks and restores whichever tariff is
+active — must not overlap with another suite's assertions. Timeouts are generous
+because the development database may be a remote, shared instance; a local
+PostgreSQL makes the suite markedly faster and less variable.
+
 The unit suite covers idempotency checks (including key ownership and payload
-conflicts) and strict transactional bounds for financial operations. The e2e
-suites boot the real app against the configured database and clean up after
-themselves: `auth.e2e-spec.ts` covers registration, login, rotation, reuse
-detection, logout and account status, while `authorization.e2e-spec.ts` covers
-object-level authorization on trips and payments, driver-only withdrawals, the
-driver operational-status policy, vehicle ownership, admin-only endpoints,
-idempotency conflicts and UUID validation.
+conflicts), tariff lifecycle and rule-precedence decisions, and strict
+transactional bounds for financial operations. The e2e suites boot the real app
+against the configured database and clean up after themselves:
+`auth.e2e-spec.ts` covers registration, login, rotation, reuse detection, logout
+and account status; `authorization.e2e-spec.ts` covers object-level authorization
+on trips and payments, driver-only withdrawals, the driver operational-status
+policy, vehicle ownership, admin-only endpoints, idempotency conflicts and UUID
+validation; and `tariff.e2e-spec.ts` covers the tariff lifecycle, deterministic
+pricing and the immutability of a historical trip's fare.
 
 ### API Documentation
 
@@ -232,6 +245,63 @@ client's job (`balance / 100`).
 
 The server is the only source of truth for a fare: it is derived from the active
 tariff, never accepted from the client.
+
+## Tariff lifecycle and fare calculation
+
+A tariff is a regulator-controlled price schedule identified by an immutable
+`version` label (for example `TARIFF-2026-001`). The version is unique and never
+reused; `name` is descriptive only. A newly created tariff is stored as `DRAFT`
+and prices nothing until an administrator activates it, so inserting a row can
+never change what a ride costs.
+
+| Operation | Endpoint | Effect (all require `ADMIN`) |
+| --- | --- | --- |
+| create | `POST /tariffs` | stores a new `DRAFT` version |
+| read | `GET /tariffs/:id` | returns one version with its rules |
+| activate | `POST /tariffs/:id/activate` | `DRAFT → ACTIVE` |
+| expire | `POST /tariffs/:id/expire` | `DRAFT`/`ACTIVE → EXPIRED` |
+
+* Only an `ACTIVE` tariff whose validity window currently covers *now* may price a
+  fare (`GET /tariffs/active`). A `DRAFT` or `EXPIRED` version is never used, and
+  neither is an `ACTIVE` one whose window has not opened or has already closed.
+* **At most one tariff may be `ACTIVE`.** Activating a second one over an
+  overlapping window is refused with `409 TARIFF_WINDOW_OVERLAP`; the incumbent
+  must be expired first, which is an explicit regulator decision. The rule is
+  enforced in the application *and* in PostgreSQL — a partial unique index
+  (`UQ_tariffs_single_active`), with activation serialised by an advisory lock so
+  concurrent admin requests cannot both win. A schedule whose window has already
+  closed is retired automatically at activation time.
+* Creation rejects an inverted window (`TARIFF_WINDOW_INVALID`), an empty rule
+  set, non-integer/zero/negative minor-unit prices, impossible or unknown stop
+  ranges, and rules pointing at inactive routes — all before anything is stored.
+* A tariff that has already priced a trip is immutable: a database trigger
+  refuses price edits to its rules, so a change means publishing a new version.
+
+### Deterministic fare calculation
+
+The fare is computed server-side from `routeId`, `originStopId` and
+`destinationStopId` (plus an optional `vehicleType`) — never from client-supplied
+text, and never from a client-supplied amount.
+
+1. the route must be `ACTIVE` and both stops must belong to it (`STOP_NOT_FOUND`);
+2. the origin stop must precede the destination stop (`STOP_ORDER_INVALID`) —
+   reverse-direction travel is not a valid fare;
+3. matching rules must be scoped to the route, contain the requested segment in
+   the travel direction, and be compatible with the requested vehicle type;
+4. candidates are ranked deterministically: a rule naming the requested vehicle
+   type beats a generic rule, then a narrower stop range beats a broader one;
+5. if two rules remain equally applicable the request is rejected with
+   `409 TARIFF_RULE_AMBIGUOUS` instead of being resolved by row order.
+
+### Trip fare snapshots
+
+A trip preserves everything needed to reconstruct its price without consulting the
+current tariff: `tariffId`, `tariffVersion`, `tariffRuleId`, `routeId`,
+`originStopId`, `destinationStopId`, `fareAmount`, `currency` and the route/stop
+name snapshots. Activating a new version therefore never changes what a historical
+trip cost. If a client does send `fareAmount`, it is accepted only when it equals
+the server's calculation — otherwise `400 FARE_MISMATCH`, and the stored fare is
+always the server's.
 
 ## Main Passenger-Driver Payment Flow
 

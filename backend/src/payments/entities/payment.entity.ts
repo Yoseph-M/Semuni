@@ -7,6 +7,21 @@ import { PaymentRecordStatus, Currency, PaymentProvider } from '../../common/enu
 @Index('UQ_payments_passenger_idempotency', ['passengerId', 'idempotencyKey'], {
   unique: true,
 })
+// A trip may have several durable *attempts* (PENDING / FAILED) but exactly one
+// payment that moved money. A blanket UNIQUE(tripId) would make a failed attempt
+// permanently unpayable, so uniqueness is partial: only SUCCESS counts.
+@Index('UQ_payments_trip_success', ['tripId'], {
+  unique: true,
+  where: `"status" = 'SUCCESS'`,
+})
+@Index('UQ_payments_provider_reference', ['providerReference'], {
+  unique: true,
+  where: '"providerReference" IS NOT NULL',
+})
+@Index('UQ_payments_receipt_number', ['receiptNumber'], {
+  unique: true,
+  where: '"receiptNumber" IS NOT NULL',
+})
 export class Payment extends BaseEntity {
   @Column()
   @Index()
@@ -43,6 +58,13 @@ export class Payment extends BaseEntity {
 
   @Column({ nullable: true })
   receiptNumber?: string;
+
+  /**
+   * Why an attempt ended in FAILED. Attempts are durable rows rather than
+   * rolled-back writes, so the reason is stored where an operator can read it.
+   */
+  @Column({ nullable: true })
+  failureReason?: string;
 
   @Column({ type: 'timestamp with time zone', nullable: true })
   completedAt?: Date;

@@ -21,6 +21,7 @@ abstract final class AppRoutes {
   static const String passengerRecentTrips = '/passenger/recent-trips';
   static const String passengerNotifications = '/passenger/notifications';
   static const String passengerSettings = '/passenger/settings';
+  static const String passengerPayment = '/passenger/payment';
 
   // ---------------------------------------------------------------------------
   // Driver

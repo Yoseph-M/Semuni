@@ -1175,12 +1175,12 @@ class _RouteDetailSheet extends StatelessWidget {
   final PassengerRoute route;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext ctx) {
     return DraggableScrollableSheet(
       initialChildSize: 0.65,
       minChildSize: 0.45,
       maxChildSize: 0.92,
-      builder: (_, scrollController) {
+      builder: (context, scrollController) {
         return Container(
           decoration: const BoxDecoration(
             color: AppColors.surface,
@@ -1391,11 +1391,95 @@ class _RouteDetailSheet extends StatelessWidget {
                   ),
                 ),
               ),
+
+              // ── Payment action (explicitly opt-in, not auto-triggered) ─────
+              ...buildPaymentSlivers(context),
             ],
           ),
         );
       },
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pay Taxi Fare helpers (used inside _RouteDetailSheet via Navigator)
+// ---------------------------------------------------------------------------
+
+extension _RouteDetailPayment on _RouteDetailSheet {
+  /// Returns the slivers to append to the detail sheet for the payment action.
+  List<Widget> buildPaymentSlivers(BuildContext context) {
+    if (route.isAvailable) {
+      return [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppConstants.screenHorizontalPadding,
+              0,
+              AppConstants.screenHorizontalPadding,
+              AppConstants.spacingXxl,
+            ),
+            child: ElevatedButton.icon(
+              key: const Key('pay_taxi_fare_button'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context)
+                    .pushNamed('/passenger/payment', arguments: route);
+              },
+              icon: const Icon(Icons.payments_rounded),
+              label: const Text('Pay Taxi Fare'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textOnPrimary,
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppConstants.screenHorizontalPadding,
+            0,
+            AppConstants.screenHorizontalPadding,
+            AppConstants.spacingXxl,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(AppConstants.spacingMd),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: AppConstants.iconSm,
+                  color: AppColors.textHint,
+                ),
+                const SizedBox(width: AppConstants.spacingXs),
+                Flexible(
+                  child: Text(
+                    'Taxis are not currently running on this route.',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textHint,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 }
 

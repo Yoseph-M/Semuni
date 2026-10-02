@@ -5,6 +5,14 @@ abstract class PassengerWalletService {
     String passengerId,
   );
   Future<PassengerWalletTransaction> topUp(String passengerId, double amount);
+
+  /// Records a taxi fare payment. Throws if [amount] <= 0.
+  Future<PassengerWalletTransaction> payTaxiFare(
+    String passengerId, {
+    required double amount,
+    required String description,
+    String? referenceId,
+  });
 }
 
 class MockPassengerWalletService implements PassengerWalletService {
@@ -58,6 +66,29 @@ class MockPassengerWalletService implements PassengerWalletService {
       amount: amount,
       type: PassengerWalletTransactionType.topUp,
       createdAt: DateTime.now(),
+    );
+    _transactions.add(newTx);
+    return newTx;
+  }
+
+  @override
+  Future<PassengerWalletTransaction> payTaxiFare(
+    String passengerId, {
+    required double amount,
+    required String description,
+    String? referenceId,
+  }) async {
+    await Future.delayed(simulatedDelay);
+    if (amount <= 0) {
+      throw Exception('Payment amount must be greater than zero.');
+    }
+    final newTx = PassengerWalletTransaction(
+      id: 'tx_p_${DateTime.now().millisecondsSinceEpoch}',
+      description: description,
+      amount: amount,
+      type: PassengerWalletTransactionType.payment,
+      createdAt: DateTime.now(),
+      referenceId: referenceId,
     );
     _transactions.add(newTx);
     return newTx;

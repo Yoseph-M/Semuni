@@ -10,9 +10,11 @@ import '../features/driver/screens/driver_withdraw_screen.dart';
 
 import '../features/passenger/screens/passenger_home_screen.dart';
 import '../features/passenger/screens/passenger_map_screen.dart';
+import '../features/passenger/screens/passenger_payment_screen.dart';
 import '../features/passenger/screens/passenger_settings_screen.dart';
 import '../features/passenger/screens/passenger_wallet_screen.dart';
 import '../repositories/auth_repository.dart';
+import '../models/passenger_route.dart';
 import '../repositories/driver_dashboard_repository.dart';
 import '../repositories/driver_route_repository.dart';
 import '../repositories/passenger_route_repository.dart';
@@ -95,7 +97,22 @@ class AppRouter {
         authRepository: authRepository,
         walletRepository: _effectivePassengerWalletRepository,
       ),
+      AppRoutes.passengerPayment => () {
+        final route = arguments is PassengerRoute ? arguments : null;
 
+        if (route == null) {
+          return const PlaceholderScreen(
+            title: 'Payment',
+            icon: Icons.payments_outlined,
+            description: 'No route selected for payment.',
+          );
+        }
+        return PassengerPaymentScreen(
+          route: route,
+          authRepository: authRepository,
+          walletRepository: _effectivePassengerWalletRepository,
+        );
+      }(),
       AppRoutes.passengerRecentTrips => const PlaceholderScreen(
         title: 'Recent Trips',
         icon: Icons.history_rounded,

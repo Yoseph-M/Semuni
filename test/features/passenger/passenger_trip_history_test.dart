@@ -328,6 +328,25 @@ class _EmptyTripService implements TripService {
   Future<List<Trip>> getRecentTrips({int limit = 5}) async => [];
 
   @override
+  Future<Trip> getTrip(String tripId) {
+    throw UnimplementedError('getTrip not used in trip history tests');
+  }
+
+  @override
+  Future<Trip> createTrip({
+    required String driverId,
+    required String routeId,
+    required String originStopId,
+    required String destinationStopId,
+    required String origin,
+    required String destination,
+    String? vehicleId,
+    String? vehicleType,
+  }) {
+    throw UnimplementedError('createTrip not used in trip history tests');
+  }
+
+  @override
   Future<Trip> completeJourney({
     required String fromLocation,
     required String toLocation,

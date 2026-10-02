@@ -11,10 +11,12 @@ import '../features/driver/screens/driver_withdraw_screen.dart';
 import '../features/passenger/screens/passenger_home_screen.dart';
 import '../features/passenger/screens/passenger_map_screen.dart';
 import '../features/passenger/screens/passenger_settings_screen.dart';
+import '../features/passenger/screens/passenger_wallet_screen.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/driver_dashboard_repository.dart';
 import '../repositories/driver_route_repository.dart';
 import '../repositories/passenger_route_repository.dart';
+import '../repositories/passenger_wallet_repository.dart';
 import '../repositories/trip_repository.dart';
 import 'app_routes.dart';
 
@@ -36,6 +38,7 @@ class AppRouter {
     this.driverDashboardRepository,
     this.driverRouteRepository,
     this.passengerRouteRepository,
+    this.passengerWalletRepository,
   });
 
   final AuthRepository authRepository;
@@ -43,6 +46,7 @@ class AppRouter {
   final DriverDashboardRepository? driverDashboardRepository;
   final DriverRouteRepository? driverRouteRepository;
   final PassengerRouteRepository? passengerRouteRepository;
+  final PassengerWalletRepository? passengerWalletRepository;
 
   TripRepository get _effectiveTripRepository =>
       tripRepository ?? TripRepository();
@@ -55,6 +59,10 @@ class AppRouter {
 
   PassengerRouteRepository get _effectivePassengerRouteRepository =>
       passengerRouteRepository ?? PassengerRouteRepository();
+
+  PassengerWalletRepository get _effectivePassengerWalletRepository =>
+      passengerWalletRepository ??
+      PassengerWalletRepository(authRepository: authRepository);
 
   /// Generates the route for a given [RouteSettings].
   ///
@@ -83,10 +91,9 @@ class AppRouter {
       AppRoutes.passengerMap => PassengerMapScreen(
         passengerRouteRepository: _effectivePassengerRouteRepository,
       ),
-      AppRoutes.passengerWallet => const PlaceholderScreen(
-        title: 'Wallet',
-        icon: Icons.account_balance_wallet_rounded,
-        description: 'View your wallet, top up, and manage payments.',
+      AppRoutes.passengerWallet => PassengerWalletScreen(
+        authRepository: authRepository,
+        walletRepository: _effectivePassengerWalletRepository,
       ),
 
       AppRoutes.passengerRecentTrips => const PlaceholderScreen(

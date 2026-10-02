@@ -114,4 +114,12 @@ class AuthRepository {
     );
     return true;
   }
+
+  /// Adds [amount] to the current passenger's wallet balance.
+  void addPassengerBalance(double amount) {
+    final activePassenger = _currentPassenger ?? defaultMockPassenger;
+    _currentPassenger = activePassenger.copyWith(
+      walletBalance: activePassenger.walletBalance + amount,
+    );
+  }
 }

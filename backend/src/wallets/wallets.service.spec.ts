@@ -11,14 +11,78 @@ import {
   LedgerEntryType,
   LedgerDirection,
 } from '../common/enums';
-import { DomainException } from '../common/domain.exception';
 import { ErrorCode } from '../common/error-codes';
 
+/**
+ * Unit coverage for the single wallet-mutation mechanism.
+ *
+ * The database enforces the same rules independently (Phase 6 migration), so
+ * these tests are about the service refusing to *attempt* an impossible
+ * movement: no save, no ledger row, no partial state.
+ */
 describe('WalletsService', () => {
   let service: WalletsService;
   let walletRepo: any;
   let ledgerService: any;
   let dataSource: any;
+
+  interface FakeWallet {
+    id: string;
+    balance: number;
+    status: WalletStatus;
+    currency: Currency;
+  }
+
+  const walletOf = (
+    id: string,
+    balance: number,
+    status: WalletStatus = WalletStatus.ACTIVE,
+  ): FakeWallet => ({ id, balance, status, currency: Currency.ETB });
+
+  /**
+   * A transaction manager over a fixed wallet table. Records which wallet ids
+   * were locked and in what order, so lock ordering is directly assertable.
+   */
+  const makeManager = (
+    byUser: Record<string, FakeWallet>,
+    ledgerEntries: Record<string, unknown> = {},
+  ) => {
+    const locks: string[] = [];
+    const saves: FakeWallet[] = [];
+    const events: string[] = [];
+
+    const manager: any = {
+      query: jest.fn().mockResolvedValue([]),
+      findOne: jest
+        .fn()
+        .mockImplementation(async (entity: any, opts: any = {}) => {
+          if (entity === LedgerEntry) {
+            const ref = opts?.where?.referenceId;
+            return ref ? (ledgerEntries[ref] ?? null) : null;
+          }
+          const userId = opts?.where?.user?.id;
+          if (userId) return byUser[userId] ?? null;
+
+          const id = opts?.where?.id;
+          if (id) {
+            if (opts?.lock) {
+              locks.push(id);
+              events.push(`lock:${id}`);
+            }
+            return Object.values(byUser).find((w) => w.id === id) ?? null;
+          }
+          return null;
+        }),
+      save: jest.fn().mockImplementation(async (wallet: FakeWallet) => {
+        saves.push(wallet);
+        events.push(`save:${wallet.id}`);
+        return wallet;
+      }),
+      create: jest.fn((_entity: any, data: any) => data),
+    };
+
+    return { manager, locks, saves, events };
+  };
 
   beforeEach(async () => {
     walletRepo = {
@@ -33,14 +97,8 @@ describe('WalletsService', () => {
     };
 
     dataSource = {
-      transaction: jest.fn().mockImplementation(async (cb) => {
-        const manager: any = {
-          findOne: jest.fn(),
-          save: jest.fn().mockImplementation((e) => e),
-          create: jest.fn(),
-        };
-        return cb(manager);
-      }),
+      transaction: jest.fn(),
+      manager: { findOne: jest.fn(), query: jest.fn() },
       getRepository: jest.fn().mockReturnValue({
         find: jest.fn().mockResolvedValue([]),
       }),
@@ -63,40 +121,23 @@ describe('WalletsService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('topUp', () => {
-    it('should skip duplicate top-ups sharing the same idempotency key', async () => {
-      const existingWallet = { id: 'w1', balance: 50000, status: WalletStatus.ACTIVE, currency: Currency.ETB };
-      ledgerService.findByReference.mockResolvedValue({ id: 'ledger-exists' });
-      walletRepo.findOne.mockResolvedValue(existingWallet);
+  describe('creditWallet / debitWallet', () => {
+    it('credits with balanceAfter = balanceBefore + amount and one ledger CREDIT', async () => {
+      const wallet = walletOf('w1', 50000);
+      const { manager } = makeManager({ 'user-1': wallet });
 
-      const result = await service.topUp('user1', 10000, 'idem-key-1');
-      expect(result.balance).toBe(50000);
-      expect(dataSource.transaction).not.toHaveBeenCalled();
-    });
-
-    it('should increase balance and record CREDIT ledger entry on new top-up', async () => {
-      ledgerService.findByReference.mockResolvedValue(null);
-      const existingWallet = { id: 'w1', balance: 50000, status: WalletStatus.ACTIVE, currency: Currency.ETB };
-
-      dataSource.transaction = jest.fn().mockImplementation(async (cb) => {
-        const manager: any = {
-          findOne: jest.fn().mockImplementation((entity: any, _opts: any) => {
-            if (entity === LedgerEntry.name) return null;
-            if (entity === Wallet || entity?.name === 'Wallet') return existingWallet;
-            return null;
-          }),
-          save: jest.fn().mockImplementation((e: any) => {
-            if (e && typeof e.balance === 'number') Object.assign(existingWallet, e);
-            return e;
-          }),
-        };
-        return cb(manager);
+      const result = await service.creditWallet(manager, 'user-1', 25000, {
+        entryType: LedgerEntryType.TOP_UP,
+        referenceType: 'TOP_UP',
+        referenceId: 'ref-1',
       });
 
-      const result = await service.topUp('user1', 25000, 'new-topup-key');
-      expect(result.balance).toBe(75000);
+      expect(result.balanceBefore).toBe(50000);
+      expect(result.balanceAfter).toBe(75000);
+      expect(wallet.balance).toBe(75000);
+      expect(ledgerService.recordEntry).toHaveBeenCalledTimes(1);
       expect(ledgerService.recordEntry).toHaveBeenCalledWith(
-        expect.anything(),
+        manager,
         expect.objectContaining({
           walletId: 'w1',
           entryType: LedgerEntryType.TOP_UP,
@@ -104,44 +145,130 @@ describe('WalletsService', () => {
           amount: 25000,
           balanceBefore: 50000,
           balanceAfter: 75000,
-          referenceId: 'new-topup-key',
+          referenceId: 'ref-1',
         }),
       );
     });
-  });
 
-  describe('atomicTransferFromTrip', () => {
-    const makeManager = (passenger: any, driver: any): any => ({
-      findOne: jest.fn().mockImplementation((entity: any, opts: any) => {
-        const uid = opts?.where?.user?.id;
-        if (uid === 'pass-u') return passenger;
-        if (uid === 'driver-u') return driver;
-        return null;
-      }),
-      save: jest.fn().mockImplementation((e: any) => {
-        if (e && e.id === passenger.id) Object.assign(passenger, e);
-        if (e && e.id === driver.id) Object.assign(driver, e);
-        return e;
-      }),
+    it('debits with balanceAfter = balanceBefore - amount and one ledger DEBIT', async () => {
+      const wallet = walletOf('w2', 50000);
+      const { manager } = makeManager({ 'user-1': wallet });
+
+      const result = await service.debitWallet(manager, 'user-1', 8500, {
+        entryType: LedgerEntryType.TRIP_PAYMENT,
+        transactionId: 'pay-1',
+        referenceType: 'TRIP',
+        referenceId: 'trip-1',
+      });
+
+      expect(result.balanceBefore).toBe(50000);
+      expect(result.balanceAfter).toBe(41500);
+      expect(ledgerService.recordEntry).toHaveBeenCalledTimes(1);
+      expect(ledgerService.recordEntry).toHaveBeenCalledWith(
+        manager,
+        expect.objectContaining({
+          direction: LedgerDirection.DEBIT,
+          amount: 8500,
+          balanceBefore: 50000,
+          balanceAfter: 41500,
+          transactionId: 'pay-1',
+        }),
+      );
     });
 
-    it('should debit passenger, credit driver, and emit exactly 2 ledger rows', async () => {
-      const passenger = {
-        id: 'pw1', balance: 50000, status: WalletStatus.ACTIVE, currency: Currency.ETB,
-      };
-      const driver = {
-        id: 'dw1', balance: 20000, status: WalletStatus.ACTIVE, currency: Currency.ETB,
-      };
-      const manager = makeManager(passenger, driver);
+    it('refuses a debit beyond the balance: no save, no ledger row, balance untouched', async () => {
+      const wallet = walletOf('w3', 500);
+      const { manager, saves } = makeManager({ 'user-1': wallet });
 
-      await service.atomicTransferFromTrip(
-        manager as any,
-        'pass-u',
-        'driver-u',
-        8500,
-        'pay-1',
-        'trip-1',
-      );
+      await expect(
+        service.debitWallet(manager, 'user-1', 8500, {
+          entryType: LedgerEntryType.TRIP_PAYMENT,
+        }),
+      ).rejects.toMatchObject({ code: ErrorCode.WALLET_INSUFFICIENT_BALANCE });
+
+      expect(wallet.balance).toBe(500);
+      expect(saves).toHaveLength(0);
+      expect(ledgerService.recordEntry).not.toHaveBeenCalled();
+    });
+
+    it('honours a caller-specific insufficient-balance code (withdrawals)', async () => {
+      const wallet = walletOf('w4', 500);
+      const { manager } = makeManager({ 'user-1': wallet });
+
+      await expect(
+        service.debitWallet(manager, 'user-1', 2000, {
+          entryType: LedgerEntryType.WITHDRAWAL,
+          referenceId: 'wd-1',
+          insufficientBalanceCode: ErrorCode.WITHDRAWAL_INSUFFICIENT_BALANCE,
+        }),
+      ).rejects.toMatchObject({
+        code: ErrorCode.WITHDRAWAL_INSUFFICIENT_BALANCE,
+      });
+    });
+
+    it('refuses a frozen wallet', async () => {
+      const wallet = walletOf('w5', 50000, WalletStatus.FROZEN);
+      const { manager, saves } = makeManager({ 'user-1': wallet });
+
+      await expect(
+        service.creditWallet(manager, 'user-1', 1000, {
+          entryType: LedgerEntryType.TOP_UP,
+        }),
+      ).rejects.toMatchObject({ code: ErrorCode.WALLET_FROZEN });
+
+      expect(saves).toHaveLength(0);
+      expect(ledgerService.recordEntry).not.toHaveBeenCalled();
+    });
+
+    it('refuses a currency mismatch rather than converting implicitly', async () => {
+      const wallet = walletOf('w6', 50000);
+      const { manager } = makeManager({ 'user-1': wallet });
+
+      await expect(
+        service.creditWallet(manager, 'user-1', 1000, {
+          entryType: LedgerEntryType.TOP_UP,
+          currency: 'USD' as Currency,
+        }),
+      ).rejects.toMatchObject({ code: ErrorCode.CURRENCY_MISMATCH });
+    });
+
+    it.each([0, -100, 12.5, NaN])(
+      'refuses a non-positive or fractional amount (%p)',
+      async (amount) => {
+        const wallet = walletOf('w7', 50000);
+        const { manager, saves } = makeManager({ 'user-1': wallet });
+
+        await expect(
+          service.creditWallet(manager, 'user-1', amount, {
+            entryType: LedgerEntryType.TOP_UP,
+          }),
+        ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+
+        expect(saves).toHaveLength(0);
+      },
+    );
+  });
+
+  describe('transferWallet', () => {
+    it('debits one wallet and credits the other with exactly two ledger rows', async () => {
+      const passenger = walletOf('pw1', 50000);
+      const driver = walletOf('dw1', 20000);
+      const { manager } = makeManager({ 'pass-u': passenger, 'driver-u': driver });
+
+      await service.transferWallet(manager, 'pass-u', 'driver-u', 8500, {
+        debit: {
+          entryType: LedgerEntryType.TRIP_PAYMENT,
+          transactionId: 'pay-1',
+          referenceType: 'TRIP',
+          referenceId: 'trip-1',
+        },
+        credit: {
+          entryType: LedgerEntryType.DRIVER_EARNING,
+          transactionId: 'pay-1',
+          referenceType: 'TRIP',
+          referenceId: 'trip-1',
+        },
+      });
 
       expect(passenger.balance).toBe(41500);
       expect(driver.balance).toBe(28500);
@@ -172,84 +299,140 @@ describe('WalletsService', () => {
       );
     });
 
-    it('CRITICAL: on insufficient balance — NO state change on either wallet, no ledger rows, throws WALLET_INSUFFICIENT_BALANCE', async () => {
-      const passenger = {
-        id: 'pw2', balance: 500, status: WalletStatus.ACTIVE, currency: Currency.ETB,
-      };
-      const driver = {
-        id: 'dw2', balance: 20000, status: WalletStatus.ACTIVE, currency: Currency.ETB,
-      };
-      const manager = makeManager(passenger, driver);
+    it('CRITICAL: acquires both wallet locks in a deterministic order (deadlock avoidance)', async () => {
+      // The passenger's wallet id sorts *after* the driver's, so a naive
+      // from-then-to lock order would be zzz → aaa. The service must lock in
+      // ascending id order regardless of which side of the transfer each is.
+      const passenger = walletOf('zzz-passenger', 50000);
+      const driver = walletOf('aaa-driver', 20000);
+      const { manager, locks } = makeManager({
+        'pass-u': passenger,
+        'driver-u': driver,
+      });
+
+      await service.transferWallet(manager, 'pass-u', 'driver-u', 8500, {
+        debit: { entryType: LedgerEntryType.TRIP_PAYMENT },
+        credit: { entryType: LedgerEntryType.DRIVER_EARNING },
+      });
+
+      expect(locks).toEqual(['aaa-driver', 'zzz-passenger']);
+    });
+
+    it('CRITICAL: insufficient balance changes nothing on either side', async () => {
+      const passenger = walletOf('pw2', 500);
+      const driver = walletOf('dw2', 20000);
+      const { manager, saves } = makeManager({ 'pass-u': passenger, 'driver-u': driver });
 
       await expect(
-        service.atomicTransferFromTrip(manager as any, 'pass-u', 'driver-u', 8500, 'pay-x', 'trip-x'),
-      ).rejects.toThrow(DomainException);
-      await expect(
-        service.atomicTransferFromTrip(manager as any, 'pass-u', 'driver-u', 8500, 'pay-x', 'trip-x'),
+        service.transferWallet(manager, 'pass-u', 'driver-u', 8500, {
+          debit: { entryType: LedgerEntryType.TRIP_PAYMENT },
+          credit: { entryType: LedgerEntryType.DRIVER_EARNING },
+        }),
       ).rejects.toMatchObject({ code: ErrorCode.WALLET_INSUFFICIENT_BALANCE });
 
       expect(passenger.balance).toBe(500);
       expect(driver.balance).toBe(20000);
+      expect(saves).toHaveLength(0);
       expect(ledgerService.recordEntry).not.toHaveBeenCalled();
-      expect(manager.save).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'pw2' }));
-      expect(manager.save).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'dw2' }));
     });
 
-    it('should throw WALLET_FROZEN if either wallet is not ACTIVE', async () => {
-      const passenger = { id: 'pz', balance: 50000, status: WalletStatus.FROZEN, currency: Currency.ETB };
-      const driver = { id: 'dz', balance: 20000, status: WalletStatus.ACTIVE, currency: Currency.ETB };
-      const manager = makeManager(passenger, driver);
+    it('refuses a frozen wallet before any money moves', async () => {
+      const passenger = walletOf('pw3', 50000, WalletStatus.FROZEN);
+      const driver = walletOf('dw3', 20000);
+      const { manager, saves } = makeManager({ 'pass-u': passenger, 'driver-u': driver });
 
       await expect(
-        service.atomicTransferFromTrip(manager as any, 'pass-u', 'driver-u', 1000, 'pay-z', 'trip-z'),
+        service.transferWallet(manager, 'pass-u', 'driver-u', 1000, {
+          debit: { entryType: LedgerEntryType.TRIP_PAYMENT },
+          credit: { entryType: LedgerEntryType.DRIVER_EARNING },
+        }),
       ).rejects.toMatchObject({ code: ErrorCode.WALLET_FROZEN });
+
       expect(passenger.balance).toBe(50000);
       expect(driver.balance).toBe(20000);
+      expect(saves).toHaveLength(0);
+    });
+
+    it('refuses a transfer between the same wallet', async () => {
+      const wallet = walletOf('same-wallet', 50000);
+      const { manager } = makeManager({ 'user-a': wallet });
+
+      await expect(
+        service.transferWallet(manager, 'user-a', 'user-a', 1000, {
+          debit: { entryType: LedgerEntryType.TRIP_PAYMENT },
+          credit: { entryType: LedgerEntryType.DRIVER_EARNING },
+        }),
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
     });
   });
 
-  describe('debitForWithdrawal', () => {
-    it('debits wallet and records WITHDRAWAL ledger DEBIT row', async () => {
-      const wallet = {
-        id: 'wdraw-w1', balance: 50000, status: WalletStatus.ACTIVE, currency: Currency.ETB,
-      };
-      const manager: any = {
-        findOne: jest.fn().mockResolvedValue(wallet),
-        save: jest.fn().mockImplementation((e: any) => {
-          if (e && e.id === wallet.id) Object.assign(wallet, e);
-          return e;
-        }),
-      };
+  describe('topUp replay protection', () => {
+    it('does not credit twice for the same provider reference', async () => {
+      const wallet = walletOf('w-top', 50000);
+      const { manager, saves } = makeManager(
+        { 'user-1': wallet },
+        {
+          // The ledger already holds a TOP_UP entry for this provider reference.
+          'provider-ref-1': { id: 'ledger-existing' },
+        },
+      );
+      dataSource.transaction.mockImplementation(async (cb: any) => cb(manager));
 
-      const result = await service.debitForWithdrawal(manager, 'u1', 10000, 'wd-1');
-      expect(result.balance).toBe(40000);
+      const result = await service.topUp('user-1', 25000, 'provider-ref-1');
+
+      expect(result.balance).toBe(50000);
+      expect(saves).toHaveLength(0);
+      expect(ledgerService.recordEntry).not.toHaveBeenCalled();
+    });
+
+    it('credits once and records the provider reference on a first confirmation', async () => {
+      const wallet = walletOf('w-top2', 0);
+      const { manager } = makeManager({ 'user-1': wallet });
+      dataSource.transaction.mockImplementation(async (cb: any) => cb(manager));
+
+      const result = await service.topUp('user-1', 25000, 'provider-ref-2');
+
+      expect(result.balance).toBe(25000);
+      expect(ledgerService.recordEntry).toHaveBeenCalledTimes(1);
       expect(ledgerService.recordEntry).toHaveBeenCalledWith(
         manager,
         expect.objectContaining({
-          entryType: LedgerEntryType.WITHDRAWAL,
-          direction: LedgerDirection.DEBIT,
-          amount: 10000,
-          balanceBefore: 50000,
-          balanceAfter: 40000,
-          referenceId: 'wd-1',
+          entryType: LedgerEntryType.TOP_UP,
+          direction: LedgerDirection.CREDIT,
+          amount: 25000,
+          referenceType: 'TOP_UP',
+          referenceId: 'provider-ref-2',
         }),
       );
     });
+  });
 
-    it('throws WITHDRAWAL_INSUFFICIENT_BALANCE and leaves wallet untouched', async () => {
-      const wallet = {
-        id: 'wdraw-w2', balance: 500, status: WalletStatus.ACTIVE, currency: Currency.ETB,
-      };
+  describe('wallet creation', () => {
+    it('creates a missing wallet through a conflict-tolerant insert', async () => {
+      const created = walletOf('w-new', 0);
+      let inserted = false;
       const manager: any = {
-        findOne: jest.fn().mockResolvedValue(wallet),
-        save: jest.fn(),
+        findOne: jest.fn().mockImplementation(async (_entity: any, opts: any = {}) => {
+          if (opts?.where?.id) return created; // the lock lookup
+          return inserted ? created : null; // pre-insert: no wallet yet
+        }),
+        query: jest.fn().mockImplementation(async () => {
+          inserted = true;
+          return [];
+        }),
+        save: jest.fn().mockImplementation(async (e: FakeWallet) => e),
       };
-      await expect(
-        service.debitForWithdrawal(manager, 'u1', 2000, 'wd-2'),
-      ).rejects.toMatchObject({ code: ErrorCode.WITHDRAWAL_INSUFFICIENT_BALANCE });
-      expect(wallet.balance).toBe(500);
-      expect(manager.save).not.toHaveBeenCalled();
-      expect(ledgerService.recordEntry).not.toHaveBeenCalled();
+
+      await service.creditWallet(manager, 'fresh-user', 1000, {
+        entryType: LedgerEntryType.TOP_UP,
+      });
+
+      // ON CONFLICT ("userId") DO NOTHING is what makes two simultaneous
+      // first-time operations converge on one wallet instead of racing.
+      expect(manager.query).toHaveBeenCalledWith(
+        expect.stringContaining('ON CONFLICT ("userId") DO NOTHING'),
+        ['fresh-user'],
+      );
     });
   });
 });

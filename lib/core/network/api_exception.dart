@@ -14,6 +14,9 @@ class ApiErrorCodes {
   static const authUserSuspended = 'AUTH_USER_SUSPENDED';
   static const authUserInactive = 'AUTH_USER_INACTIVE';
   static const authUserPending = 'AUTH_USER_PENDING';
+  static const authAccountLocked = 'AUTH_ACCOUNT_LOCKED';
+  static const authTokenExpired = 'AUTH_TOKEN_EXPIRED';
+  static const authTokenInvalid = 'AUTH_TOKEN_INVALID';
 
   // Wallet / money
   static const walletInsufficientBalance = 'WALLET_INSUFFICIENT_BALANCE';
@@ -27,6 +30,7 @@ class ApiErrorCodes {
   static const tripAlreadyPaid = 'TRIP_ALREADY_PAID';
   static const tripNotPayable = 'TRIP_NOT_PAYABLE';
   static const fareMismatch = 'FARE_MISMATCH';
+  static const fareCalculationFailed = 'FARE_CALCULATION_FAILED';
 
   // Fare / tariff configuration
   static const tariffNotFound = 'TARIFF_NOT_FOUND';
@@ -43,6 +47,7 @@ class ApiErrorCodes {
   // Driver / vehicle
   static const driverNotActive = 'DRIVER_NOT_ACTIVE';
   static const driverNotFound = 'DRIVER_NOT_FOUND';
+  static const passengerNotFound = 'PASSENGER_NOT_FOUND';
   static const vehicleNotFound = 'VEHICLE_NOT_FOUND';
   static const vehicleNotActive = 'VEHICLE_NOT_ACTIVE';
   static const vehicleNotOwned = 'VEHICLE_NOT_OWNED';
@@ -52,6 +57,13 @@ class ApiErrorCodes {
   static const paymentAlreadyProcessed = 'PAYMENT_ALREADY_PROCESSED';
   static const paymentFailed = 'PAYMENT_FAILED';
   static const paymentNotFound = 'PAYMENT_NOT_FOUND';
+  static const paymentNotOwned = 'PAYMENT_NOT_OWNED';
+
+  /// The provider has not finished the payment yet; nothing was credited.
+  static const paymentPending = 'PAYMENT_PENDING';
+
+  /// The provider is unreachable, misconfigured, or does not offer the operation.
+  static const paymentProviderUnavailable = 'PAYMENT_PROVIDER_UNAVAILABLE';
   static const withdrawalInsufficientBalance = 'WITHDRAWAL_INSUFFICIENT_BALANCE';
   static const withdrawalNotFound = 'WITHDRAWAL_NOT_FOUND';
 
@@ -235,6 +247,12 @@ class ApiException implements Exception {
     ApiErrorCodes.authUserSuspended:
         'This account is suspended. Contact Semuni support.',
     ApiErrorCodes.authUserPending: 'This account is not active yet.',
+    ApiErrorCodes.authAccountLocked:
+        'Too many failed attempts. Try again in a few minutes.',
+    ApiErrorCodes.paymentPending:
+        'The payment provider has not confirmed the money yet. Finish the payment, then try again.',
+    ApiErrorCodes.paymentProviderUnavailable:
+        'That payment method is not available right now.',
     ApiErrorCodes.walletInsufficientBalance:
         'Your wallet balance is too low for this payment. Top up and try again.',
     ApiErrorCodes.withdrawalInsufficientBalance:

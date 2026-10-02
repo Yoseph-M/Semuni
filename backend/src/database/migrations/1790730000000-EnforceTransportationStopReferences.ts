@@ -3,7 +3,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class EnforceTransportationStopReferences1790730000000
   implements MigrationInterface
 {
-  name = 'EnforceTransportationStopReferences1790730000';
+  name = 'EnforceTransportationStopReferences1790730000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // A route cannot contain two stops at the same sequence position.
@@ -27,7 +27,10 @@ export class EnforceTransportationStopReferences1790730000000
       FROM "route_stops" origin_stop
       JOIN "route_stops" destination_stop
         ON destination_stop."routeId" = origin_stop."routeId"
-      WHERE t."routeId" = origin_stop."routeId"
+      -- trips."routeId" is character varying while route_stops."routeId" is
+      -- uuid, so the route reference is compared as text rather than casting
+      -- the trip column (legacy rows may not hold a valid uuid).
+      WHERE origin_stop."routeId"::text = t."routeId"
         AND LOWER(TRIM(t."origin")) = LOWER(TRIM(origin_stop."name"))
         AND LOWER(TRIM(t."destination")) = LOWER(TRIM(destination_stop."name"))
         AND origin_stop."sequence" < destination_stop."sequence"

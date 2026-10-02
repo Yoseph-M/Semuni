@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../core/auth/auth_session.dart';
+import '../core/network/api_client.dart';
 import '../navigation/app_router.dart';
 import '../navigation/app_routes.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/driver_dashboard_repository.dart';
 import '../repositories/driver_route_repository.dart';
 import '../repositories/passenger_route_repository.dart';
+import '../repositories/passenger_wallet_repository.dart';
 import '../repositories/trip_repository.dart';
+import '../services/api/api_driver_dashboard_service.dart';
+import '../services/api/api_driver_route_service.dart';
+import '../services/api/api_passenger_route_service.dart';
+import '../services/api/api_passenger_wallet_service.dart';
+import '../services/api/api_trip_service.dart';
 import 'theme/app_theme.dart';
 
-/// SMUNI application root widget.
-///
-/// Wires together:
-/// - The SMUNI Material 3 theme
-/// - The centralized app router
-/// - The repositories (dependency injection)
-///
-/// Does NOT contain any business logic or UI components directly.
 class SmuniApp extends StatefulWidget {
   const SmuniApp({super.key});
 
@@ -25,30 +25,49 @@ class SmuniApp extends StatefulWidget {
 }
 
 class _SmuniAppState extends State<SmuniApp> {
-  // Instantiated here so they live for the lifetime of the application.
-  // When a proper DI container or state management package is introduced
-  // (e.g., Riverpod), this will be replaced by a provider/container setup.
+  late final AuthSession _session;
+  late final ApiClient _apiClient;
   late final AuthRepository _authRepository;
   late final TripRepository _tripRepository;
   late final DriverDashboardRepository _driverDashboardRepository;
   late final DriverRouteRepository _driverRouteRepository;
   late final PassengerRouteRepository _passengerRouteRepository;
+  late final PassengerWalletRepository _passengerWalletRepository;
   late final AppRouter _router;
 
   @override
   void initState() {
     super.initState();
-    _authRepository = AuthRepository();
-    _tripRepository = TripRepository();
-    _driverDashboardRepository = DriverDashboardRepository();
-    _driverRouteRepository = DriverRouteRepository();
-    _passengerRouteRepository = PassengerRouteRepository();
+
+    // One session/client pair is shared by every repository.
+    _session = AuthSession();
+    _apiClient = ApiClient(session: _session);
+    _authRepository = AuthRepository(session: _session);
+
+    _tripRepository = TripRepository(
+      tripService: ApiTripService(client: _apiClient),
+    );
+    _driverDashboardRepository = DriverDashboardRepository(
+      service: ApiDriverDashboardService(client: _apiClient),
+    );
+    _driverRouteRepository = DriverRouteRepository(
+      service: ApiDriverRouteService(client: _apiClient),
+    );
+    _passengerRouteRepository = PassengerRouteRepository(
+      service: ApiPassengerRouteService(client: _apiClient),
+    );
+    _passengerWalletRepository = PassengerWalletRepository(
+      service: ApiPassengerWalletService(client: _apiClient),
+      authRepository: _authRepository,
+    );
+
     _router = AppRouter(
       authRepository: _authRepository,
       tripRepository: _tripRepository,
       driverDashboardRepository: _driverDashboardRepository,
       driverRouteRepository: _driverRouteRepository,
       passengerRouteRepository: _passengerRouteRepository,
+      passengerWalletRepository: _passengerWalletRepository,
     );
   }
 

@@ -1,37 +1,24 @@
 import '../models/passenger_route.dart';
 import '../services/mock/mock_passenger_route_service.dart';
 
-/// Repository for passenger route discovery operations.
-///
-/// Mediates between the presentation layer and the route service layer.
-///
-/// Architecture:
-/// UI → PassengerRouteRepository → PassengerRouteService (Mock or Real API)
 class PassengerRouteRepository {
-  PassengerRouteRepository({PassengerRouteService? service})
-    : _service = service ?? MockPassengerRouteService();
+  PassengerRouteRepository({PassengerRouteService? service, this.apiService})
+      : _service = service;
 
-  final PassengerRouteService _service;
+  final PassengerRouteService? _service;
+  final PassengerRouteService? apiService;
 
-  /// Retrieves all stations on the SMUNI taxi network.
-  Future<List<TaxiStation>> getStations() => _service.getStations();
+  PassengerRouteService get service =>
+      _service ?? apiService ?? MockPassengerRouteService();
 
-  /// Retrieves all available passenger routes.
-  Future<List<PassengerRoute>> getAllRoutes() => _service.getAllRoutes();
-
-  /// Searches routes where the destination matches [query].
-  ///
-  /// Returns an empty list when [query] is blank.
+  Future<List<TaxiStation>> getStations() => service.getStations();
+  Future<List<PassengerRoute>> getAllRoutes() => service.getAllRoutes();
   Future<List<PassengerRoute>> searchByDestination(String query) =>
-      _service.searchByDestination(query);
-
-  /// Returns all routes that serve [stationId] as a destination.
+      service.searchByDestination(query);
   Future<List<PassengerRoute>> getRoutesToStation(String stationId) =>
-      _service.getRoutesToStation(stationId);
-
-  /// Searches routes matching both starting and ending points.
+      service.getRoutesToStation(stationId);
   Future<List<PassengerRoute>> searchRoutes({
     required String fromQuery,
     required String toQuery,
-  }) => _service.searchRoutes(fromQuery: fromQuery, toQuery: toQuery);
+  }) => service.searchRoutes(fromQuery: fromQuery, toQuery: toQuery);
 }

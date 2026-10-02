@@ -10,6 +10,9 @@
  *   2. `--probe` — asserts PostgreSQL itself rejects impossible financial rows.
  *      Every probe runs inside a transaction that is rolled back.
  *
+ * `--strict` exits non-zero on any finding or probe that is not rejected as
+ * expected, so CI can gate on it.
+ *
  * Run with:
  *   npx ts-node -r tsconfig-paths/register src/database/verify-financial-integrity.ts
  *   npx ts-node -r tsconfig-paths/register src/database/verify-financial-integrity.ts --probe
@@ -17,8 +20,11 @@
 import 'reflect-metadata';
 import dataSource from './data-source';
 
+let failures = 0;
+
 function report(label: string, code: string | undefined, expected: string): void {
   const ok = code === expected;
+  if (!ok) failures += 1;
   console.log(
     `${ok ? '✅' : '❌'} ${label}: rejected with code ${code}${
       ok ? '' : ` (expected ${expected})`
@@ -38,6 +44,7 @@ async function probe(
   await runner.startTransaction();
   try {
     await runner.query(sql, params);
+    failures += 1;
     console.log(`❌ ${label}: statement succeeded but should have failed`);
   } catch (err) {
     report(label, (err as { code?: string }).code, expected);
@@ -143,6 +150,7 @@ async function runReport(): Promise<void> {
       continue;
     }
     total += rows.length;
+    failures += 1;
     console.log(
       `⚠️  ${rows.length} finding(s) — ${finding.label} (${finding.hint})`,
     );
@@ -181,13 +189,23 @@ async function main(): Promise<void> {
       }
 
       // 2. Duplicate ledger entry for the same transaction/wallet/type.
-      await probe(
-        'duplicate ledger movement',
-        '23505',
-        `INSERT INTO ledger_entries ("walletId", "transactionId", "entryType", direction, amount, "balanceBefore", "balanceAfter")
-         SELECT "walletId", "transactionId", "entryType", 'CREDIT', 1, 0, 1
-         FROM ledger_entries WHERE "transactionId" IS NOT NULL LIMIT 1`,
+      // Needs an existing movement to duplicate; with none, the INSERT … SELECT
+      // would insert zero rows and look like a constraint failure.
+      const [movement] = await dataSource.query(
+        `SELECT id FROM ledger_entries WHERE "transactionId" IS NOT NULL LIMIT 1`,
       );
+      if (movement) {
+        await probe(
+          'duplicate ledger movement',
+          '23505',
+          `INSERT INTO ledger_entries ("walletId", "transactionId", "entryType", direction, amount, "balanceBefore", "balanceAfter")
+           SELECT "walletId", "transactionId", "entryType", 'CREDIT', 1, 0, 1
+           FROM ledger_entries WHERE id = $1`,
+          [movement.id],
+        );
+      } else {
+        console.log('⏭️  duplicate ledger movement: skipped (no ledger movements yet)');
+      }
 
       // 3. Ledger arithmetic that does not hold.
       if (wallet) {
@@ -229,6 +247,10 @@ async function main(): Promise<void> {
     }
   } finally {
     await dataSource.destroy();
+  }
+  if (process.argv.includes('--strict') && failures > 0) {
+    console.error(`\n[verify] ${failures} check(s) failed in --strict mode.`);
+    process.exit(1);
   }
 }
 

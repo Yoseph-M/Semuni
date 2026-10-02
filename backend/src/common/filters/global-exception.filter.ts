@@ -14,6 +14,11 @@ import { ErrorCode } from '../error-codes';
  *   "code": "..."
  * }
  */
+interface ErrorResponseBody {
+  message?: string | string[];
+  error?: string;
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -29,13 +34,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (exception instanceof DomainException) {
       status = exception.getStatus();
-      const responseBody = exception.getResponse() as any;
-      message = responseBody.message;
-      error = responseBody.error;
+      const responseBody = exception.getResponse() as ErrorResponseBody;
+      message = responseBody.message ?? exception.message;
+      error = responseBody.error ?? error;
       code = exception.code;
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
-      const responseBody = exception.getResponse() as any;
+      const responseBody = exception.getResponse() as string | ErrorResponseBody;
       
       // Handle class-validator errors gracefully
       if (typeof responseBody === 'object' && responseBody !== null) {

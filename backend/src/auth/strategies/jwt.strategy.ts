@@ -3,9 +3,14 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../../users/users.service';
-import { UserStatus } from '../../common/enums';
+import { UserRole, UserStatus } from '../../common/enums';
 import { DomainException } from '../../common/domain.exception';
 import { nonActiveStatusError } from '../user-status.util';
+
+interface AccessTokenPayload {
+  sub: string;
+  role: UserRole;
+}
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -20,7 +25,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: any) {
+  async validate(payload: AccessTokenPayload) {
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
       throw new UnauthorizedException();

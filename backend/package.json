@@ -22,7 +22,11 @@
     "migration:generate": "npm run typeorm -- migration:generate -d src/database/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run -d src/database/data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/database/data-source.ts",
-    "seed:dev": "ts-node --files -r tsconfig-paths/register ./src/database/seeds/seed-dev-data.ts"
+    "seed:dev": "ts-node --files -r tsconfig-paths/register ./src/database/seeds/seed-dev-data.ts",
+    "lint:ci": "eslint \"{src,test}/**/*.ts\" --max-warnings=0",
+    "migration:check": "npm run typeorm -- migration:generate src/database/migrations/__schema_drift_check -d src/database/data-source.ts --check",
+    "verify:financial": "ts-node -r tsconfig-paths/register src/database/verify-financial-integrity.ts",
+    "prepare": "cd .. && husky backend/.husky || true"
   },
   "dependencies": {
     "@fastify/helmet": "^13.1.1",
@@ -60,7 +64,9 @@
     "@types/uuid": "^10.0.0",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
     "jest": "^29.7.0",
+    "lint-staged": "^17.6.0",
     "prettier": "^3.4.0",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
@@ -91,6 +97,15 @@
     "testEnvironment": "node",
     "moduleNameMapper": {
       "^src/(.*)$": "<rootDir>/src/$1"
+    }
+  },
+  "lint-staged": {
+    "*.ts": "eslint --max-warnings=0"
+  },
+  "overrides": {
+    "fastify": "^5.12.5",
+    "@nestjs/swagger": {
+      "js-yaml": "^5.4.2"
     }
   }
 }

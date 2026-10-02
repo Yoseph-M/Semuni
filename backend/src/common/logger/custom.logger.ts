@@ -9,7 +9,7 @@ interface CustomLogContext {
   paymentId?: string;
   transactionId?: string;
   // Add other relevant IDs here
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 @Injectable({ scope: Scope.TRANSIENT })
@@ -29,8 +29,11 @@ export class CustomLogger extends ConsoleLogger {
     if (request && 'requestId' in request) {
       this.requestId = (request as Request).requestId;
     }
-    if (request && 'user' in request && (request as any).user && (request as any).user.sub) {
-      this.userId = (request as any).user.sub;
+    // JwtStrategy attaches the User entity (`id`); a raw JWT payload has `sub`.
+    const user = (request as { user?: { id?: string; sub?: string } } | undefined)
+      ?.user;
+    if (user?.id || user?.sub) {
+      this.userId = user.id ?? user.sub;
     }
   }
 
@@ -38,13 +41,13 @@ export class CustomLogger extends ConsoleLogger {
   //   (message, context?, customContext?)
   // For error(), keep Nest's traditional (message, stackTrace?, context?, customContext?)
 
-  log(message: any, context?: string, customContext?: CustomLogContext) {
+  log(message: unknown, context?: string, customContext?: CustomLogContext) {
     const enhancedContext = this.getEnhancedContext(customContext, context);
     super.log(message, enhancedContext);
   }
 
   error(
-    message: any,
+    message: unknown,
     traceOrStack?: string,
     context?: string,
     customContext?: CustomLogContext,
@@ -53,17 +56,17 @@ export class CustomLogger extends ConsoleLogger {
     super.error(message, traceOrStack, enhancedContext);
   }
 
-  warn(message: any, context?: string, customContext?: CustomLogContext) {
+  warn(message: unknown, context?: string, customContext?: CustomLogContext) {
     const enhancedContext = this.getEnhancedContext(customContext, context);
     super.warn(message, enhancedContext);
   }
 
-  debug(message: any, context?: string, customContext?: CustomLogContext) {
+  debug(message: unknown, context?: string, customContext?: CustomLogContext) {
     const enhancedContext = this.getEnhancedContext(customContext, context);
     super.debug(message, enhancedContext);
   }
 
-  verbose(message: any, context?: string, customContext?: CustomLogContext) {
+  verbose(message: unknown, context?: string, customContext?: CustomLogContext) {
     const enhancedContext = this.getEnhancedContext(customContext, context);
     super.verbose(message, enhancedContext);
   }

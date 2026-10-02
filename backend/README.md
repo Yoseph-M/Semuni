@@ -73,9 +73,7 @@ That error means exactly one thing: the process found no `.env` in `backend/`
 
 Fix it on the new machine:
 
-1. Create `backend/.env` **next to `package.json`** (note: the first line of
-   `.env.example` is literally `[TEMPLATE]` — it is a marker, not a key; delete
-   it when copying).
+1. Create `backend/.env` **next to `package.json`** (`cp .env.example .env`).
 2. Fill in at minimum:
 
    | Key | Notes |

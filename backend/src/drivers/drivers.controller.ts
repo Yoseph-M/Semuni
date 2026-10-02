@@ -27,6 +27,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { Trip } from '../trips/entities/trip.entity';
 import { UserRole, LedgerEntryType } from '../common/enums';
 import { RequestWithdrawalDto } from '../withdrawals/dto/withdrawal.dto';
 
@@ -120,7 +121,7 @@ export class DriversController {
 
     const entries = await this.walletsService.getWalletTransactions(user.id, 30);
     const trips = await this.tripsService.getDriverTrips(user.id);
-    const tripByRef = new Map<string, any>();
+    const tripByRef = new Map<string, Trip>();
     for (const t of trips) tripByRef.set(t.id, t);
 
     const result = [];

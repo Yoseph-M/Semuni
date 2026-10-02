@@ -4,7 +4,7 @@ import { Injectable, Logger } from '@nestjs/common';
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  async sendPushNotification(userId: string, title: string, body: string, _data?: any) {
+  async sendPushNotification(userId: string, title: string, body: string, _data?: Record<string, unknown>) {
     // In a real application, this would integrate with Firebase Cloud Messaging (FCM)
     // or another push notification service.
     this.logger.log(`Sending notification to user ${userId}: [${title}] ${body}`);

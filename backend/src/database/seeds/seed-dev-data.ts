@@ -29,7 +29,7 @@ import { UsersService } from '../../users/users.service';
 import { VehiclesService } from '../../vehicles/vehicles.service';
 import { RoutesService } from '../../routes/routes.service';
 import { TariffsService } from '../../tariffs/tariffs.service';
-import { Currency, UserRole, VehicleType } from '../../common/enums';
+import { Currency, TariffStatus, UserRole, VehicleType } from '../../common/enums';
 import { RegisterDto } from '../../auth/dto/auth.dto';
 import { CreateRouteDto } from '../../routes/dto/route.dto';
 import { CreateTariffDto } from '../../tariffs/dto/tariff.dto';
@@ -49,11 +49,36 @@ function resolvePassword(key: string, label: string): string {
   return generated;
 }
 
-/** Registers an account, tolerating an existing one so re-runs are safe. */
+/**
+ * Ensures an account exists, tolerating an existing one so re-runs are safe.
+ *
+ * ADMIN accounts cannot go through the public registration endpoint — it
+ * deliberately refuses that role so nobody can self-promote — so the seeding
+ * path creates them directly. Registration is still used for passengers and
+ * drivers because it also creates their role profile transactionally.
+ */
 async function upsertUser(
   authService: AuthService,
+  usersService: UsersService,
   account: RegisterDto,
 ): Promise<void> {
+  const existing = await usersService.findByUsername(account.username);
+  if (existing) {
+    console.log(`[seed] ↩️  ${account.username} already exists — skipped`);
+    return;
+  }
+
+  if (account.role === UserRole.ADMIN) {
+    await usersService.create({
+      username: account.username,
+      // UsersService hashes the password before persisting it.
+      passwordHash: account.password,
+      role: UserRole.ADMIN,
+    });
+    console.log(`[seed] ✅ created ADMIN ${account.username}`);
+    return;
+  }
+
   try {
     await authService.register(account);
     console.log(`[seed] ✅ created ${account.role} ${account.username}`);
@@ -106,6 +131,10 @@ const SAMPLE_ROUTES: CreateRouteDto[] = [
 // Indicative SAMPLE fares in santim (minor units). Not official values.
 const SAMPLE_FARES_SANTIM = [8500, 7000, 12000];
 
+// Stable sample version so re-running the seed is idempotent. Versions are
+// never reused, so the real regulator schedule must use a different one.
+const SAMPLE_TARIFF_VERSION = 'TARIFF-SAMPLE-V1';
+
 async function main(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: ['error', 'warn'],
@@ -123,21 +152,21 @@ async function main(): Promise<void> {
     const passengerUsername = envOr('SEED_PASSENGER_USERNAME', 'passenger');
     const driverUsername = envOr('SEED_DRIVER_USERNAME', 'driver');
 
-    await upsertUser(authService, {
+    await upsertUser(authService, usersService, {
       username: adminUsername,
       fullName: 'Development Admin',
       password: resolvePassword('SEED_ADMIN_PASSWORD', 'admin'),
       role: UserRole.ADMIN,
     });
 
-    await upsertUser(authService, {
+    await upsertUser(authService, usersService, {
       username: passengerUsername,
       fullName: 'Development Passenger',
       password: resolvePassword('SEED_PASSENGER_PASSWORD', 'passenger'),
       role: UserRole.PASSENGER,
     });
 
-    await upsertUser(authService, {
+    await upsertUser(authService, usersService, {
       username: driverUsername,
       fullName: 'Development Driver',
       password: resolvePassword('SEED_DRIVER_PASSWORD', 'driver'),
@@ -184,17 +213,20 @@ async function main(): Promise<void> {
     }
 
     // ─── Tariff ───────────────────────────────────────────
-    let activeTariffExists = true;
-    try {
-      await tariffsService.getActiveTariff();
-    } catch {
-      activeTariffExists = false;
-    }
+    // Tariffs are created in DRAFT and only price fares once explicitly
+    // activated, so the seed must do both steps.
+    const allTariffs = await tariffsService.findAll();
+    let sampleTariff = allTariffs.find(
+      (tariff) => tariff.version === SAMPLE_TARIFF_VERSION,
+    );
 
-    if (activeTariffExists) {
-      console.log('[seed] ↩️  an active tariff already exists — skipped');
+    if (sampleTariff) {
+      console.log(
+        `[seed] ↩️  tariff ${SAMPLE_TARIFF_VERSION} already exists — skipped creation`,
+      );
     } else {
       const tariffDto: CreateTariffDto = {
+        version: SAMPLE_TARIFF_VERSION,
         // Named to make clear this is not an official schedule.
         name: 'Sample Tariff (development only)',
         validFrom: new Date().toISOString(),
@@ -205,10 +237,27 @@ async function main(): Promise<void> {
           basePrice: SAMPLE_FARES_SANTIM[index % SAMPLE_FARES_SANTIM.length],
         })),
       };
-      const tariff = await tariffsService.create(tariffDto);
+      sampleTariff = await tariffsService.create(tariffDto);
       console.log(
-        `[seed] ✅ created tariff "${tariff.name}" with ${resolvedRoutes.length} rule(s)`,
+        `[seed] ✅ created tariff "${sampleTariff.version}" with ${resolvedRoutes.length} rule(s)`,
       );
+    }
+
+    if (sampleTariff.status === TariffStatus.ACTIVE) {
+      console.log(
+        `[seed] ↩️  tariff ${sampleTariff.version} is already active — skipped`,
+      );
+    } else {
+      try {
+        const activated = await tariffsService.activate(sampleTariff.id);
+        console.log(`[seed] ✅ activated tariff ${activated.version}`);
+      } catch (err) {
+        // A real regulator tariff may already be live; the sample must never
+        // displace it, so a conflict is reported rather than forced through.
+        console.log(
+          `[seed] ⚠️  could not activate ${sampleTariff.version}: ${err.message}`,
+        );
+      }
     }
 
     console.log(

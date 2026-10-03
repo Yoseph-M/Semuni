@@ -50,6 +50,7 @@ class AppRouter {
     this.passengerWalletRepository,
     this.paymentRepository,
     this.driverDiscoveryRepository,
+    this.notificationRepository,
   });
 
   final AuthRepository authRepository;
@@ -60,6 +61,7 @@ class AppRouter {
   final PassengerWalletRepository? passengerWalletRepository;
   final PaymentRepository? paymentRepository;
   final DriverDiscoveryRepository? driverDiscoveryRepository;
+  final NotificationRepository? notificationRepository;
 
   /// Payment and driver discovery have no mock fallback here: a payment screen
   /// built without them shows an explanatory placeholder instead of silently

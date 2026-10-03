@@ -12,15 +12,20 @@ import '../../../navigation/app_routes.dart';
 /// - Passenger avatar with profile icon
 /// - Dynamic time-based greeting with passenger's name
 /// - Tappable notification button navigating to [AppRoutes.passengerNotifications]
+/// - Optional [hasUnread] badge on the notification button
 class PassengerHomeHeader extends StatelessWidget {
   const PassengerHomeHeader({
     super.key,
     required this.passengerName,
     this.onNotificationTap,
+    this.hasUnread = false,
   });
 
   final String passengerName;
   final VoidCallback? onNotificationTap;
+
+  /// When true, a small green dot badge is shown on the notification bell.
+  final bool hasUnread;
 
   @override
   Widget build(BuildContext context) {
@@ -90,28 +95,50 @@ class PassengerHomeHeader extends StatelessWidget {
                       .pushNamed(AppRoutes.passengerNotifications);
                 },
             borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                border: Border.all(color: AppColors.border, width: 1.0),
-                boxShadow: const [
-                  BoxShadow(
-                    color: AppColors.shadow,
-                    blurRadius: 4,
-                    offset: Offset(0, 1),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+                    border: Border.all(color: AppColors.border, width: 1.0),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: AppColors.shadow,
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.notifications_outlined,
-                  size: AppConstants.iconMd + 2,
-                  color: AppColors.textPrimary,
+                  child: const Center(
+                    child: Icon(
+                      Icons.notifications_outlined,
+                      size: AppConstants.iconMd + 2,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                 ),
-              ),
+                if (hasUnread)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.surface,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),

@@ -10,6 +10,7 @@ import '../features/driver/screens/driver_withdraw_screen.dart';
 
 import '../features/passenger/screens/passenger_home_screen.dart';
 import '../features/passenger/screens/passenger_map_screen.dart';
+import '../features/passenger/screens/passenger_notifications_screen.dart';
 import '../features/passenger/screens/passenger_payment_screen.dart';
 import '../features/passenger/screens/passenger_settings_screen.dart';
 import '../features/passenger/screens/passenger_trip_detail_screen.dart';
@@ -21,6 +22,7 @@ import '../models/trip.dart';
 import '../repositories/driver_dashboard_repository.dart';
 import '../repositories/driver_discovery_repository.dart';
 import '../repositories/driver_route_repository.dart';
+import '../repositories/notification_repository.dart';
 import '../repositories/passenger_route_repository.dart';
 import '../repositories/passenger_wallet_repository.dart';
 import '../repositories/payment_repository.dart';
@@ -79,6 +81,9 @@ class AppRouter {
       passengerWalletRepository ??
       PassengerWalletRepository(authRepository: authRepository);
 
+  NotificationRepository get _effectiveNotificationRepository =>
+      notificationRepository ?? NotificationRepository();
+
   /// Generates the route for a given [RouteSettings].
   ///
   /// Called by [MaterialApp.onGenerateRoute].
@@ -102,6 +107,7 @@ class AppRouter {
       AppRoutes.passengerHome => PassengerHomeScreen(
         authRepository: authRepository,
         tripRepository: _effectiveTripRepository,
+        notificationRepository: _effectiveNotificationRepository,
       ),
       AppRoutes.passengerMap => PassengerMapScreen(
         passengerRouteRepository: _effectivePassengerRouteRepository,
@@ -126,8 +132,7 @@ class AppRouter {
           return const PlaceholderScreen(
             title: 'Payment',
             icon: Icons.payments_outlined,
-            description:
-                'Payment is not available in this build (missing dependencies).',
+            description: 'Payment is not available in this build (missing dependencies).',
           );
         }
         return PassengerPaymentScreen(
@@ -154,10 +159,8 @@ class AppRouter {
         }
         return PassengerTripDetailScreen(trip: trip);
       }(),
-      AppRoutes.passengerNotifications => const PlaceholderScreen(
-        title: 'Notifications',
-        icon: Icons.notifications_rounded,
-        description: 'Stay updated with your latest activity.',
+      AppRoutes.passengerNotifications => PassengerNotificationsScreen(
+        notificationRepository: _effectiveNotificationRepository,
       ),
       AppRoutes.passengerSettings => PassengerSettingsScreen(
         authRepository: authRepository,

@@ -1,0 +1,86 @@
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsArray,
+  ArrayMinSize,
+  ValidateNested,
+  IsDateString,
+  IsInt,
+  Min,
+  Matches,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
+import { Currency, VehicleType } from '../../common/enums';
+
+export class CreateTariffRuleDto {
+  @ApiProperty({ enum: VehicleType, required: false })
+  @IsOptional()
+  @IsEnum(VehicleType)
+  vehicleType?: VehicleType;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  routeId: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  startStopSequence?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  endStopSequence?: number;
+
+  @ApiProperty({ description: 'Base price in minor units (e.g., 8500 santim for 85.00 ETB)' })
+  @IsInt()
+  @Min(1)
+  basePrice: number;
+}
+
+export class CreateTariffDto {
+  @ApiProperty({
+    description:
+      'Immutable, unique tariff version identifier, e.g. TARIFF-2026-001. Versions are never reused.',
+    example: 'TARIFF-2026-001',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[A-Z0-9][A-Z0-9._-]*$/, {
+    message:
+      'version must be an uppercase identifier such as TARIFF-2026-001 (letters, digits, dot, dash and underscore only)',
+  })
+  version: string;
+
+  @ApiProperty({ description: 'Human-readable label; not an identifier' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty()
+  @IsDateString()
+  validFrom: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsDateString()
+  validTo?: string;
+
+  @ApiProperty({ enum: Currency, default: Currency.ETB })
+  @IsEnum(Currency)
+  @IsOptional()
+  currency?: Currency;
+
+  @ApiProperty({ type: [CreateTariffRuleDto], minItems: 1 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CreateTariffRuleDto)
+  rules: CreateTariffRuleDto[];
+}

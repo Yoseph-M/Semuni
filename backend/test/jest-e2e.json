@@ -1,0 +1,15 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testTimeout": 120000,
+  "setupFiles": ["<rootDir>/throttle-test-env.ts"],
+  "testRegex": "[.]e2e-spec[.]ts$",
+  "transform": {
+    "^.+[.](t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/../src/$1"
+  },
+  "maxWorkers": 1
+}

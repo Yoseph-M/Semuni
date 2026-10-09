@@ -1,0 +1,55 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'test/**'
+      - 'web/**'
+      - 'assets/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'analysis_options.yaml'
+      - '.github/workflows/flutter.yml'
+  pull_request:
+    paths:
+      - 'lib/**'
+      - 'test/**'
+      - 'web/**'
+      - 'assets/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'analysis_options.yaml'
+      - '.github/workflows/flutter.yml'
+
+concurrency:
+  group: flutter-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.5
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Analyze (zero issues)
+        run: flutter analyze
+
+      # The live smoke tests under test/integration only run when
+      # SMUNI_LIVE_BACKEND=true is passed, so this is the offline suite: no
+      # backend, no Telebirr/links.et account and no credentials are required.
+      # The Voxide bridge contract tests live in the Backend CI workflow, next
+      # to the jest project that runs them.
+      - name: Widget and unit tests (offline)
+        run: flutter test --reporter expanded

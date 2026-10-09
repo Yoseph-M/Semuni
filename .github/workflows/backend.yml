@@ -1,6 +1,9 @@
 name: Backend CI
 
 on:
+  # Manual trigger: lets CI be started from the Actions tab or the REST API when
+  # a push event has not produced a run.
+  workflow_dispatch:
   push:
     branches: [main]
     paths:

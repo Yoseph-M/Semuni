@@ -6,7 +6,12 @@ import { Driver } from '../drivers/entities/driver.entity';
 import { Trip } from '../trips/entities/trip.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { Wallet } from '../wallets/entities/wallet.entity';
-import { DriverStatus, PaymentRecordStatus, UserRole } from '../common/enums';
+import {
+  DriverStatus,
+  PaymentRecordStatus,
+  PaymentStatus,
+  UserRole,
+} from '../common/enums';
 import { CreateAdminUserDto, UpdateAdminUserDto } from './dto/admin-user.dto';
 import { UserStatus } from '../common/enums';
 import { UsersService } from '../users/users.service';
@@ -78,7 +83,7 @@ export class AdminService {
       this.users.countBy({ role: UserRole.DRIVER }),
       this.drivers.countBy({ status: DriverStatus.ACTIVE }),
       this.trips.count(),
-      this.trips.countBy({ paymentStatus: 'PAID' as any }),
+      this.trips.countBy({ paymentStatus: PaymentStatus.PAID }),
       this.payments.countBy({ status: PaymentRecordStatus.PENDING }),
       this.payments.countBy({ status: PaymentRecordStatus.SUCCESS }),
       this.payments.countBy({ status: PaymentRecordStatus.FAILED }),

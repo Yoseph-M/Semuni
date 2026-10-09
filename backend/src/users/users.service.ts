@@ -1,0 +1,107 @@
+import { Injectable, HttpStatus } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, EntityManager } from 'typeorm';
+import { User } from './entities/user.entity';
+import { DomainException } from '../common/domain.exception';
+import { ErrorCode } from '../common/error-codes';
+import * as bcrypt from 'bcrypt';
+
+@Injectable()
+export class UsersService {
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
+
+  async findByUsername(username: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { username } });
+  }
+
+  async findByPhone(phone: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { phone } });
+  }
+
+  async findById(id: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { id } });
+  }
+
+  /**
+   * Creates a user.
+   *
+   * Pass [manager] to participate in an ambient transaction so the user row and
+   * any related profile rows commit or roll back together.
+   */
+  async create(
+    userData: Partial<User>,
+    manager?: EntityManager,
+  ): Promise<User> {
+    const repo = manager ? manager.getRepository(User) : this.userRepository;
+
+    const existing = await repo.findOne({
+      where: { username: userData.username! },
+    });
+    if (existing) {
+      throw new DomainException(
+        'User with this username already exists',
+        HttpStatus.CONFLICT,
+        ErrorCode.AUTH_USER_EXISTS,
+      );
+    }
+
+    // Phone is optional but still unique, so guard against a raw 500.
+    if (userData.phone) {
+      const phoneTaken = await repo.findOne({
+        where: { phone: userData.phone },
+      });
+      if (phoneTaken) {
+        throw new DomainException(
+          'User with this phone number already exists',
+          HttpStatus.CONFLICT,
+          ErrorCode.AUTH_USER_EXISTS,
+        );
+      }
+    }
+
+    if (userData.passwordHash) {
+      userData.passwordHash = await bcrypt.hash(userData.passwordHash, 10);
+    }
+
+    const user = repo.create(userData);
+    return repo.save(user);
+  }
+
+  async updateLastLogin(id: string): Promise<void> {
+    await this.userRepository.update(id, {
+      lastLoginAt: new Date(),
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    });
+  }
+
+  /** Used only by controlled provisioning/seed flows; never exposed as an API. */
+  async setPassword(id: string, password: string): Promise<void> {
+    await this.userRepository.update(id, {
+      passwordHash: await bcrypt.hash(password, 10),
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    });
+  }
+
+  /**
+   * Atomically counts a failed password attempt. Reaching `threshold` locks the
+   * account for `lockMinutes` and resets the counter for the next window.
+   */
+  async recordFailedLogin(
+    id: string,
+    threshold: number,
+    lockMinutes: number,
+  ): Promise<void> {
+    await this.userRepository.query(
+      `UPDATE users SET
+         "failedLoginAttempts" = CASE WHEN "failedLoginAttempts" + 1 >= $2 THEN 0 ELSE "failedLoginAttempts" + 1 END,
+         "lockedUntil" = CASE WHEN "failedLoginAttempts" + 1 >= $2 THEN now() + make_interval(mins => $3) ELSE "lockedUntil" END
+       WHERE id = $1`,
+      [id, threshold, lockMinutes],
+    );
+  }
+}

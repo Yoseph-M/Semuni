@@ -1,0 +1,31 @@
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --blue: #63b5f5;
+  --navy: #e7f1f8;
+  --muted: #9fb1bf;
+  --line: #2a3d4b;
+  background: #0d1720;
+}
+
+:root[data-theme='dark'] body { background: #0d1720; color: #e7f1f8; }
+:root[data-theme='dark'] .auth-form,
+:root[data-theme='dark'] .metric,
+:root[data-theme='dark'] .card { background: #14222d; border-color: #2a3d4b; }
+:root[data-theme='dark'] .auth-form h1,
+:root[data-theme='dark'] h1,
+:root[data-theme='dark'] h2 { color: #e7f1f8; }
+:root[data-theme='dark'] .auth-form label,
+:root[data-theme='dark'] .user-form label { color: #c7d6df; }
+:root[data-theme='dark'] input,
+:root[data-theme='dark'] select { background: #0f1b24; color: #e7f1f8; border-color: #38505f; }
+:root[data-theme='dark'] .secondary { background: #1b2b38; color: #e7f1f8; border-color: #385466; }
+:root[data-theme='dark'] nav button { background: #1d3443; color: #c7dce8; }
+:root[data-theme='dark'] nav button.active { background: var(--blue); color: #092238; }
+:root[data-theme='dark'] .record-count { background: #203542; color: #c7dce8; }
+:root[data-theme='dark'] tbody tr:hover { background: #192d3a; }
+:root[data-theme='dark'] .user-form { background: #10202b; border-color: #2a4658; }
+:root[data-theme='dark'] footer { color: #9fb1bf; }
+
+.auth-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 32px; margin-bottom: 28px; }
+.auth-toolbar .mobile-brand { margin-bottom: 0; }
+.theme-toggle { white-space: nowrap; }

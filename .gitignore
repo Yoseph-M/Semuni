@@ -59,6 +59,7 @@ app.*.map.json
 node_modules/
 web/admin/dist/
 *.tsbuildinfo
+web/admin/node_modules/
 
 # Backend compiled output
 backend/dist/

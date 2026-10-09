@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Semuni — Phase 3 authorization check</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+         margin: 0; padding: 24px; background: #0f1115; color: #e6e8ee; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.hint { color: #9aa3b2; margin: 0 0 18px; max-width: 900px; }
+  fieldset { border: 1px solid #2a2f3a; border-radius: 8px; padding: 12px 14px; margin: 0 0 14px; }
+  legend { color: #9aa3b2; padding: 0 6px; }
+  label { display: inline-block; margin: 2px 10px 2px 0; color: #c3c9d4; }
+  input { background: #171a21; border: 1px solid #2f3542; border-radius: 6px;
+          color: #e6e8ee; padding: 6px 8px; min-width: 150px; }
+  input.wide { min-width: 300px; }
+  button { background: #2f6feb; border: 0; border-radius: 6px; color: #fff;
+           padding: 9px 16px; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: progress; }
+  #banner { display: none; margin: 14px 0; padding: 12px 14px; border-radius: 8px; font-weight: 700; }
+  #banner.ok { display: block; background: #10391f; color: #6ee7a0; }
+  #banner.bad { display: block; background: #3d1418; color: #ff9aa5; }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; table-layout: fixed; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid #232833; vertical-align: top; }
+  th { color: #9aa3b2; font-weight: 600; }
+  .pill { font-weight: 700; padding: 1px 8px; border-radius: 999px; font-size: 12px; }
+  .pass { background: #10391f; color: #6ee7a0; }
+  .fail { background: #3d1418; color: #ff9aa5; }
+  .blocked { background: #3a2f10; color: #f5d67b; }
+  .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #c3c9d4; word-break: break-word; }
+  #log { background: #171a21; border: 1px solid #2a2f3a; border-radius: 8px; padding: 10px 12px;
+         margin-top: 14px; max-height: 180px; overflow: auto;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #9aa3b2; }
+</style>
+</head>
+<body>
+<h1>Semuni — Phase 3 authorization check</h1>
+<p class="hint">
+  This page talks directly to a running Semuni backend (<code>npm run start:prod</code> in
+  <code>backend/</code>) and exercises the authorization rules added in Phase 3: object-level
+  access to trips and payments, driver-only withdrawals, UUID validation, and scoped idempotency
+  keys. It runs against your development database and creates two <code>uitest_*</code> passengers
+  plus a few trips/payments, so point it at dev — never production.
+</p>
+
+<fieldset>
+  <legend>Backend</legend>
+  <label>API base <input id="apiBase" class="wide" value="http://localhost:3000/api/v1" /></label>
+</fieldset>
+
+<fieldset>
+  <legend>Passenger A (created on first run, reused after)</legend>
+  <label>Username <input id="paUser" value="uitest_a" /></label>
+  <label>Password <input id="paPass" type="password" value="UiTest#2026" /></label>
+</fieldset>
+
+<fieldset>
+  <legend>Passenger B (must be a different account)</legend>
+  <label>Username <input id="pbUser" value="uitest_b" /></label>
+  <label>Password <input id="pbPass" type="password" value="UiTest#2026" /></label>
+</fieldset>
+
+<fieldset>
+  <legend>Driver (any ACTIVE driver account — e.g. the seeded <code>driver</code> user)</legend>
+  <label>Username <input id="drvUser" placeholder="driver" /></label>
+  <label>Password <input id="drvPass" type="password" placeholder="driver password" /></label>
+</fieldset>
+
+<p>
+  <button id="run">Run Phase 3 checks</button>
+  <span class="hint" id="phase"></span>
+</p>
+
+<div id="banner"></div>
+<table id="results">
+  <thead><tr><th style="width:44%">Check</th><th>Expected</th><th>Actual</th><th>Result</th></tr></thead>
+  <tbody></tbody>
+</table>
+<div id="log"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const results = [];
+
+function log(line) {
+  const el = $('log');
+  el.textContent += line + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+function render() {
+  const tbody = document.querySelector('#results tbody');
+  tbody.innerHTML = '';
+  for (const r of results) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + r.name + (r.detail ? '<br><span class="code">' + r.detail + '</span>' : '') + '</td>' +
+      '<td class="code">' + r.expected + '</td>' +
+      '<td class="code">' + r.actual + '</td>' +
+      '<td><span class="pill ' + r.result + '">' + r.result.toUpperCase() + '</span></td>';
+    tbody.appendChild(tr);
+  }
+  const shown = results.filter((r) => r.result !== 'blocked');
+  const passed = results.filter((r) => r.result === 'pass').length;
+  const failed = results.filter((r) => r.result === 'fail').length;
+  const blocked = results.filter((r) => r.result === 'blocked').length;
+  const banner = $('banner');
+  if (shown.length === 0) return;
+  if (failed === 0 && blocked === 0) {
+    banner.className = 'ok';
+    banner.textContent = 'All ' + passed + ' Phase 3 checks passed.';
+  } else {
+    banner.className = 'bad';
+    banner.textContent = passed + ' passed · ' + failed + ' failed' + (blocked ? ' · ' + blocked + ' blocked' : '');
+  }
+}
+
+function record(name, expected, actual, ok, detail) {
+  results.push({
+    name, expected,
+    actual: actual || '—',
+    result: ok === 'blocked' ? 'blocked' : ok ? 'pass' : 'fail',
+    detail,
+  });
+  render();
+}
+
+function actualOf(res) {
+  const code = res.body && res.body.code ? ' ' + res.body.code : '';
+  return (res.status || 'network error') + code;
+}
+
+async function call(method, path, opts = {}) {
+  const headers = {};
+  if (opts.token) headers['Authorization'] = 'Bearer ' + opts.token;
+  if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+  try {
+    const res = await fetch($('apiBase').value.replace(/\/$/, '') + path, {
+      method, headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    });
+    let body = null;
+    try { body = await res.json(); } catch (_) { /* empty body */ }
+    return { status: res.status, body };
+  } catch (err) {
+    return { status: 0, body: { message: String(err && err.message ? err.message : err) } };
+  }
+}
+
+const codeOf = (res) => (res.body && res.body.code) || '(no code)';
+
+async function ensurePassenger(username, password) {
+  const registered = await call('POST', '/auth/register', {
+    body: { username, fullName: 'UI Test ' + username, password, role: 'PASSENGER' },
+  });
+  if (registered.status === 201 && registered.body && registered.body.data) {
+    return { ok: true, id: registered.body.data.user.id, token: registered.body.data.accessToken };
+  }
+  if (registered.status === 409) {
+    const loggedIn = await call('POST', '/auth/login', {
+      body: { username, password, role: 'PASSENGER' },
+    });
+    if (loggedIn.status === 200 && loggedIn.body && loggedIn.body.data) {
+      return { ok: true, id: loggedIn.body.data.user.id, token: loggedIn.body.data.accessToken };
+    }
+    return { ok: false, message: 'account exists but login failed (' + actualOf(loggedIn) + ') — change the password field or username' };
+  }
+  return { ok: false, message: 'register failed (' + actualOf(registered) + ')' };
+}
+
+async function ensureFunds(token, label, minimumMinor) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const wallet = await call('GET', '/wallet', { token });
+    if (wallet.status === 200 && wallet.body.data.balance >= minimumMinor) return { ok: true, balance: wallet.body.data.balance };
+    const key = 'ui-topup-' + label + '-' + Date.now() + '-' + attempt;
+    const initiated = await call('POST', '/wallet/top-up', { token, body: { amount: 200000, idempotencyKey: key } });
+    if (initiated.status !== 201) return { ok: false, message: 'top-up initiate failed (' + actualOf(initiated) + ')' };
+    const confirmed = await call('POST', '/wallet/top-up/' + initiated.body.data.intentId + '/confirm', { token });
+    if (confirmed.status !== 200 && confirmed.status !== 201) return { ok: false, message: 'top-up confirm failed (' + actualOf(confirmed) + ')' };
+  }
+  return { ok: false, message: 'could not fund the wallet' };
+}
+
+async function run() {
+  $('run').disabled = true;
+  $('banner').className = '';
+  $('log').textContent = '';
+  results.length = 0;
+  render();
+
+  const pa = await ensurePassenger($('paUser').value.trim(), $('paPass').value);
+  const pb = await ensurePassenger($('pbUser').value.trim(), $('pbPass').value);
+  const drv = await call('POST', '/auth/login', {
+    body: { username: $('drvUser').value.trim(), password: $('drvPass').value, role: 'DRIVER' },
+  });
+
+  if (!pa.ok || !pb.ok || drv.status !== 200) {
+    record('Setup — accounts available',
+      'passengers register/login, driver login',
+      pa.ok ? (pb.ok ? 'driver: ' + actualOf(drv) : 'passenger B: ' + pb.message) : 'passenger A: ' + pa.message,
+      false,
+      'Fix the credentials above; a fresh driver account is PENDING and cannot be used until an admin approves it.');
+    $('run').disabled = false;
+    return;
+  }
+
+  const driverId = drv.body.data.user.id;
+  const driverToken = drv.body.data.accessToken;
+  log('passenger A ' + pa.id + ' · passenger B ' + pb.id + ' · driver ' + driverId);
+
+  const routes = await call('GET', '/routes', { token: pa.token });
+  const route = routes.status === 200
+    ? (routes.body.data || []).find((r) => r.status === 'ACTIVE')
+    : undefined;
+  if (!route) {
+    record('Setup — an ACTIVE route with a fare rule',
+      'GET /routes → at least one ACTIVE route',
+      actualOf(routes), 'blocked',
+      'Seed the development fixtures (npm run seed:dev) or create a route + tariff.');
+    $('run').disabled = false;
+    return;
+  }
+
+  const fundA = await ensureFunds(pa.token, 'a', 50000);
+  const fundB = await ensureFunds(pb.token, 'b', 50000);
+  if (!fundA.ok || !fundB.ok) {
+    record('Setup — funded wallets', 'wallet balance ≥ 50000 santim',
+      fundA.ok ? fundB.message : fundA.message, 'blocked');
+    $('run').disabled = false;
+    return;
+  }
+  log('route ' + route.code + ' ' + route.origin + ' → ' + route.destination);
+
+  const newTrip = async (token) => {
+    const res = await call('POST', '/trips', {
+      token,
+      body: { driverId, origin: route.origin, destination: route.destination },
+    });
+    return res;
+  };
+
+  const tripA1 = await newTrip(pa.token);
+  const tripA2 = await newTrip(pa.token);
+  const tripB1 = await newTrip(pb.token);
+  if (tripA1.status !== 201 || tripA2.status !== 201 || tripB1.status !== 201) {
+    record('Setup — trips created', 'POST /trips → 201 for both passengers',
+      [tripA1, tripA2, tripB1].map(actualOf).join(' · '), 'blocked',
+      'Trip creation needs an ACTIVE driver, an active route and an active tariff.');
+    $('run').disabled = false;
+    return;
+  }
+  const tripA1Id = tripA1.body.data.id;
+  const tripA2Id = tripA2.body.data.id;
+  const tripB1Id = tripB1.body.data.id;
+  log('trip A1 ' + tripA1Id + ' · trip A2 ' + tripA2Id + ' · trip B ' + tripB1Id);
+
+  const sharedKey = 'ui-phase3-' + Date.now();
+  const paid = await call('POST', '/payments/trip', {
+    token: pa.token, body: { tripId: tripA1Id, idempotencyKey: sharedKey },
+  });
+  if (paid.status !== 200) {
+    record('Setup — passenger A pays trip A1', 'POST /payments/trip → 200',
+      actualOf(paid), 'blocked');
+    $('run').disabled = false;
+    return;
+  }
+  const paymentAId = paid.body.data.paymentId;
+  log('payment ' + paymentAId);
+
+  const check = async (name, expected, expectedCode, promise) => {
+    const res = await promise;
+    const ok = res.status === expected && (expectedCode ? codeOf(res) === expectedCode : true);
+    record(name, expected + (expectedCode ? ' ' + expectedCode : ''), actualOf(res), ok);
+    return res;
+  };
+
+  // ── Object-level authorization ─────────────────────────────────────────
+  await check('Passenger A reads own trip', 200, null,
+    call('GET', '/trips/' + tripA1Id, { token: pa.token }));
+  await check('Assigned driver reads that trip', 200, null,
+    call('GET', '/trips/' + tripA1Id, { token: driverToken }));
+  await check('Passenger B reads A\'s trip', 403, 'TRIP_NOT_OWNED',
+    call('GET', '/trips/' + tripA1Id, { token: pb.token }));
+  await check('Passenger A reads own payment', 200, null,
+    call('GET', '/payments/' + paymentAId, { token: pa.token }));
+  await check('Passenger B reads A\'s payment', 403, 'PAYMENT_NOT_OWNED',
+    call('GET', '/payments/' + paymentAId, { token: pb.token }));
+
+  // ── Identifier handling ────────────────────────────────────────────────
+  await check('Malformed trip id', 400, 'VALIDATION_ERROR',
+    call('GET', '/trips/not-a-uuid', { token: pa.token }));
+  await check('Unknown trip id', 404, 'TRIP_NOT_FOUND',
+    call('GET', '/trips/00000000-0000-4000-8000-000000000000', { token: pa.token }));
+  await check('Unauthenticated trip read', 401, null,
+    call('GET', '/trips/' + tripA1Id, {}));
+
+  // ── Idempotency ownership and payload conflict ─────────────────────────
+  const replay = await check('Same key + same trip replays the payment', 200, null,
+    call('POST', '/payments/trip', { token: pa.token, body: { tripId: tripA1Id, idempotencyKey: sharedKey } }));
+  const short = (id) => (id ? String(id).slice(0, 8) + '…' : '—');
+  record('Replay returned the same payment id', 'the same id as payment ' + short(paymentAId),
+    replay.status === 200 && replay.body.data ? short(replay.body.data.paymentId) : '—',
+    replay.status === 200 && replay.body.data && replay.body.data.paymentId === paymentAId,
+    'A repeated identical request must never charge twice.');
+
+  await check('Same key reused for A\'s other trip', 409, 'IDEMPOTENCY_CONFLICT',
+    call('POST', '/payments/trip', { token: pa.token, body: { tripId: tripA2Id, idempotencyKey: sharedKey } }));
+
+  const crossUser = await check('Passenger B uses the same key for B\'s trip', 200, null,
+    call('POST', '/payments/trip', { token: pb.token, body: { tripId: tripB1Id, idempotencyKey: sharedKey } }));
+  record('B\'s payment is B\'s own operation', 'a different id from A\'s payment ' + short(paymentAId),
+    crossUser.status === 200 && crossUser.body.data ? short(crossUser.body.data.paymentId) : '—',
+    crossUser.status === 200 && crossUser.body.data && crossUser.body.data.paymentId !== paymentAId,
+    'Keys are scoped to their owner: one user\'s key must not resolve to another user\'s money.');
+
+  await check('Passenger B pays a trip that is not B\'s', 403, 'TRIP_NOT_OWNED',
+    call('POST', '/payments/trip', { token: pb.token, body: { tripId: tripA1Id, idempotencyKey: sharedKey + '-x' } }));
+
+  // ── Driver-only withdrawals ────────────────────────────────────────────
+  await check('Passenger requests a withdrawal', 403, 'AUTH_FORBIDDEN',
+    call('POST', '/withdrawals', {
+      token: pa.token,
+      body: { amount: 1, destinationType: 'BANK', destination: 'Test bank', destinationAccount: '0', idempotencyKey: 'ui-wd-' + Date.now() },
+    }));
+  await check('Passenger lists withdrawals', 403, 'AUTH_FORBIDDEN',
+    call('GET', '/withdrawals', { token: pa.token }));
+  await check('ACTIVE driver reads earnings (operational surface)', 200, null,
+    call('GET', '/drivers/me/earnings', { token: driverToken }));
+  const wd = await call('POST', '/withdrawals', {
+    token: driverToken,
+    body: { amount: 1, destinationType: 'BANK', destination: 'Test bank', destinationAccount: '0', idempotencyKey: 'ui-wd-ok-' + Date.now() },
+  });
+  record('ACTIVE driver may request a withdrawal', '201',
+    actualOf(wd), wd.status === 201,
+    'Amount is 1 santim so the check does not disturb real balances.');
+  await check('Driver lists own withdrawals', 200, null,
+    call('GET', '/withdrawals', { token: driverToken }));
+
+  $('run').disabled = false;
+  log('done');
+}
+
+$('run').addEventListener('click', run);
+</script>
+</body>
+</html>
